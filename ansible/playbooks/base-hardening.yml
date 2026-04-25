@@ -1,0 +1,67 @@
+---
+- name: Base hardening and configuration
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+
+    - name: Install common tools
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - htop
+          - net-tools
+          - unzip
+          - vim
+          - ufw
+        state: present
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny
+
+    - name: Allow SSH through UFW
+      ufw:
+        rule: allow
+        port: 22
+        proto: tcp
+
+    - name: Disable password authentication for SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        state: present
+      notify: Restart SSH
+
+    - name: Disable root login over SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+        state: present
+      notify: Restart SSH
+
+    - name: Configure passwordless sudo for ansible user
+      lineinfile:
+        path: /etc/sudoers.d/{{ ansible_user }}
+        line: "{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL"
+        create: yes
+        mode: '0440'
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: ssh
+        state: restarted
