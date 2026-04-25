@@ -43,4 +43,5 @@ makes the final one possible.
 
 ## Status
 
-🔧 Phase 1 in progress
+✅ Phase 1 complete
+🔧 Phase 2 in progress
