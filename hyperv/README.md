@@ -17,7 +17,7 @@ router with no managed VLAN support. Tags would go nowhere. Revisit when
 a managed switch is added.
 
 ## Storage
-
+s
 | Drive | Path | Role |
 |---|---|---|
 | 1TB SSD (D:) | `D:\Hyper-V\Virtual Hard Disks` | VM disks |
