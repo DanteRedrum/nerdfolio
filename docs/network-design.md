@@ -4,26 +4,28 @@
 
 ISP-provided router — no managed VLAN support. Physical network segmentation
 is not available at this stage. Segmentation is implemented in software via
-Proxmox Linux bridges.
+Hyper-V virtual switches.
 
-## Proxmox Bridge Topology
+## Hyper-V Virtual Switch Topology
 
-| Bridge | Uplink | Purpose |
+| vSwitch | Type | Purpose |
 |---|---|---|
-| `vmbr0` | Physical NIC | Internet-facing VMs — general lab, Docker host |
-| `vmbr1` | None | Internal only — services, inter-VM communication |
-| `vmbr2` | None | Security lab — completely isolated, no uplink ever |
+| `vSwitch-External` | External | Internet-facing VMs, bridges to physical NIC |
+| `vSwitch-Internal` | Internal | Lab inter-VM communication, host can reach VMs |
+| `vSwitch-Isolated` | Private | Security lab — no host access, no external access |
 
 ## Security Lab Isolation
 
-`vmbr2` has no physical uplink by design. VMs attached to this bridge
-cannot reach the physical network or the internet. Isolation is enforced
-at the hypervisor level, not by policy.
+`vSwitch-Isolated` is a Hyper-V Private switch. VMs on this switch cannot
+reach the host, the physical network, or the internet. Hyper-V enforces
+this at the hypervisor level — not by policy, by design.
 
 Vulnerable VMs are provisioned and torn down via Ansible playbook.
 They are never persistent. See `security-lab/` for methodology.
 
 ## Future State
 
-When a managed switch is added, physical VLANs will replace or supplement
-the bridge topology. This doc will be updated at that time.
+When a managed switch is added, physical VLANs become available.
+When a dedicated Proxmox host is added, the bridge topology from the
+original design gets implemented there. This doc will be updated at
+that time.
