@@ -16,7 +16,7 @@ If you're reading this, you're seeing how I actually work.
 | Directory | Purpose |
 |---|---|
 | `docs/` | Architecture decisions, hardware, network design |
-| `proxmox/` | Proxmox configuration and notes |
+| `hyperv/` | Proxmox configuration and notes |
 | `ansible/` | Playbooks, roles, inventory — the connective tissue |
 | `docker/` | Compose files for all running services |
 | `powershell/` | 75+ scripts, organized and documented |
