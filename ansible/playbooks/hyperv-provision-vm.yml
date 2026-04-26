@@ -6,35 +6,27 @@
 
   vars:
     vm_name: "nf-test-vm"
-    vm_ram: 2147483648        # 2GB in bytes
-    vm_disk_size: 42949672960 # 40GB in bytes
+    vm_ram: 2147483648
+    vm_disk_size: 42949672960
     vm_switch: "vSwitch-Internal"
-    vm_disk_path: "D:\\Hyper-V\\Virtual Hard Disks\\{{ vm_name }}.vhdx"
     vm_generation: 2
+    vm_cpu: 2
+    vm_vhd_dir: "D:\\Hyper-V\\Virtual Hard Disks"
 
   tasks:
     - name: Check if VM already exists
       ansible.windows.win_powershell:
         script: |
           $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
-          if ($vm) {
-            $Ansible.Result = "exists"
-          } else {
-            $Ansible.Result = "absent"
-          }
+          if ($vm) { $Ansible.Result = "exists" } else { $Ansible.Result = "absent" }
       register: vm_check
       changed_when: false
 
     - name: Create VM
       ansible.windows.win_powershell:
         script: |
-          New-VM `
-            -Name "{{ vm_name }}" `
-            -Generation {{ vm_generation }} `
-            -MemoryStartupBytes {{ vm_ram }} `
-            -NewVHDPath "{{ vm_disk_path }}" `
-            -NewVHDSizeBytes {{ vm_disk_size }} `
-            -SwitchName "{{ vm_switch }}"
+          $vhdPath = "{{ vm_vhd_dir }}\{{ vm_name }}.vhdx"
+          New-VM -Name "{{ vm_name }}" -Generation {{ vm_generation }} -MemoryStartupBytes {{ vm_ram }} -NewVHDPath $vhdPath -NewVHDSizeBytes {{ vm_disk_size }} -SwitchName "{{ vm_switch }}"
       when: vm_check.result == "absent"
 
     - name: Disable dynamic memory
@@ -46,15 +38,13 @@
     - name: Set CPU count
       ansible.windows.win_powershell:
         script: |
-          Set-VMProcessor -VMName "{{ vm_name }}" -Count 2
+          Set-VMProcessor -VMName "{{ vm_name }}" -Count {{ vm_cpu }}
       when: vm_check.result == "absent"
 
     - name: Configure secure boot for Linux
       ansible.windows.win_powershell:
         script: |
-          Set-VMFirmware `
-            -VMName "{{ vm_name }}" `
-            -SecureBootTemplate "MicrosoftUEFICertificateAuthority"
+          Set-VMFirmware -VMName "{{ vm_name }}" -SecureBootTemplate "MicrosoftUEFICertificateAuthority"
       when: vm_check.result == "absent"
 
     - name: Report result
