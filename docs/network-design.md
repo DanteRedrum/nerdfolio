@@ -29,3 +29,15 @@ When a managed switch is added, physical VLANs become available.
 When a dedicated Proxmox host is added, the bridge topology from the
 original design gets implemented there. This doc will be updated at
 that time.
+
+## Internal Network Internet Access
+
+VMs on `vSwitch-Internal` reach the internet via IP forwarding enabled on
+the Windows host. Configured via:
+
+    Set-NetIPInterface -InterfaceAlias "vEthernet (vSwitch-Internal)" -Forwarding Enabled
+    Set-NetIPInterface -InterfaceAlias "Ethernet" -Forwarding Enabled
+
+This setting persists across reboots — confirmed after full Windows restart.
+New-NetNat was tested but not required — forwarding alone is sufficient
+for Internal VM internet access.
