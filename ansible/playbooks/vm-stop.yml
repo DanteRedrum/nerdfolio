@@ -1,0 +1,42 @@
+---
+- name: Stop a Hyper-V VM
+  hosts: windows
+  gather_facts: false
+  become: false
+
+  vars:
+    vm_name: ""
+    force: false
+
+  tasks:
+    - name: Validate vm_name is set
+      fail:
+        msg: "vm_name is required. Use -e 'vm_name=nf-something'"
+      when: vm_name == ""
+
+    - name: Check VM state
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if (-not $vm) {
+            $Ansible.Result = "notfound"
+          } else {
+            $Ansible.Result = $vm.State.ToString()
+          }
+      register: vm_state
+      changed_when: false
+
+    - name: Fail if VM not found
+      fail:
+        msg: "VM {{ vm_name }} not found"
+      when: vm_state.result == "notfound"
+
+    - name: Stop VM if running
+      ansible.windows.win_powershell:
+        script: |
+          Stop-VM -Name "{{ vm_name }}" {{ "-Force" if force else "" }}
+      when: vm_state.result == "Running"
+
+    - name: Report result
+      debug:
+        msg: "{{ vm_name }} {{ 'was already stopped' if vm_state.result != 'Running' else 'stopped successfully' }}"

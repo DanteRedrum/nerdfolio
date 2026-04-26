@@ -1,0 +1,41 @@
+---
+- name: Start a Hyper-V VM
+  hosts: windows
+  gather_facts: false
+  become: false
+
+  vars:
+    vm_name: ""
+
+  tasks:
+    - name: Validate vm_name is set
+      fail:
+        msg: "vm_name is required. Use -e 'vm_name=nf-something'"
+      when: vm_name == ""
+
+    - name: Check VM state
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if (-not $vm) {
+            $Ansible.Result = "notfound"
+          } else {
+            $Ansible.Result = $vm.State.ToString()
+          }
+      register: vm_state
+      changed_when: false
+
+    - name: Fail if VM not found
+      fail:
+        msg: "VM {{ vm_name }} not found"
+      when: vm_state.result == "notfound"
+
+    - name: Start VM if not running
+      ansible.windows.win_powershell:
+        script: |
+          Start-VM -Name "{{ vm_name }}"
+      when: vm_state.result != "Running"
+
+    - name: Report result
+      debug:
+        msg: "{{ vm_name }} {{ 'was already running' if vm_state.result == 'Running' else 'started successfully' }}"
