@@ -1,0 +1,30 @@
+---
+- name: Attach ISO to Hyper-V VM
+  hosts: windows
+  gather_facts: false
+  become: false
+
+  vars:
+    vm_name: ""
+    iso_path: "E:\\Hyper-V\\ISOs\\ubuntu-26.04-live-server-amd64.iso"
+
+  tasks:
+    - name: Validate vm_name is set
+      fail:
+        msg: "vm_name is required. Use -e 'vm_name=nf-something'"
+      when: vm_name == ""
+
+    - name: Attach ISO
+      ansible.windows.win_powershell:
+        script: |
+          Add-VMDvdDrive -VMName "{{ vm_name }}" -Path "{{ iso_path }}"
+
+    - name: Set DVD as first boot device
+      ansible.windows.win_powershell:
+        script: |
+          $dvd = Get-VMDvdDrive -VMName "{{ vm_name }}"
+          Set-VMFirmware -VMName "{{ vm_name }}" -FirstBootDevice $dvd
+
+    - name: Report result
+      debug:
+        msg: "ISO attached and boot order set for {{ vm_name }}"
