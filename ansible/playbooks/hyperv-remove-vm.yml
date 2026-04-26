@@ -1,0 +1,38 @@
+---
+- name: Remove a Hyper-V VM
+  hosts: windows
+  gather_facts: false
+  become: false
+
+  vars:
+    vm_name: "nf-test-vm"
+    vm_disk_path: "D:\\Hyper-V\\Virtual Hard Disks\\{{ vm_name }}.vhdx"
+
+  tasks:
+    - name: Stop VM if running
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if ($vm -and $vm.State -eq 'Running') {
+            Stop-VM -Name "{{ vm_name }}" -Force
+          }
+
+    - name: Remove VM
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if ($vm) {
+            Remove-VM -Name "{{ vm_name }}" -Force
+          }
+
+    - name: Remove VHD
+      ansible.windows.win_powershell:
+        script: |
+          if (Test-Path "{{ vm_disk_path }}") {
+            Remove-Item "{{ vm_disk_path }}" -Force
+          }
+
+    - name: Report result
+      ansible.windows.win_powershell:
+        script: |
+          $Ansible.Result = "{{ vm_name }} removed"

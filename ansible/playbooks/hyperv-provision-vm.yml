@@ -1,0 +1,61 @@
+---
+- name: Provision a Hyper-V VM
+  hosts: windows
+  gather_facts: false
+  become: false
+
+  vars:
+    vm_name: "nf-test-vm"
+    vm_ram: 2147483648        # 2GB in bytes
+    vm_disk_size: 42949672960 # 40GB in bytes
+    vm_switch: "vSwitch-Internal"
+    vm_disk_path: "D:\\Hyper-V\\Virtual Hard Disks\\{{ vm_name }}.vhdx"
+    vm_generation: 2
+
+  tasks:
+    - name: Check if VM already exists
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if ($vm) {
+            $Ansible.Result = "exists"
+          } else {
+            $Ansible.Result = "absent"
+          }
+      register: vm_check
+
+    - name: Create VM
+      ansible.windows.win_powershell:
+        script: |
+          New-VM `
+            -Name "{{ vm_name }}" `
+            -Generation {{ vm_generation }} `
+            -MemoryStartupBytes {{ vm_ram }} `
+            -NewVHDPath "{{ vm_disk_path }}" `
+            -NewVHDSizeBytes {{ vm_disk_size }} `
+            -SwitchName "{{ vm_switch }}"
+      when: vm_check.result == "absent"
+
+    - name: Disable dynamic memory
+      ansible.windows.win_powershell:
+        script: |
+          Set-VMMemory -VMName "{{ vm_name }}" -DynamicMemoryEnabled $false
+      when: vm_check.result == "absent"
+
+    - name: Set CPU count
+      ansible.windows.win_powershell:
+        script: |
+          Set-VMProcessor -VMName "{{ vm_name }}" -Count 2
+      when: vm_check.result == "absent"
+
+    - name: Configure secure boot for Linux
+      ansible.windows.win_powershell:
+        script: |
+          Set-VMFirmware `
+            -VMName "{{ vm_name }}" `
+            -SecureBootTemplate "MicrosoftUEFICertificateAuthority"
+      when: vm_check.result == "absent"
+
+    - name: Report result
+      debug:
+        msg: "{{ vm_name }} {{ 'already exists — skipped' if vm_check.result == 'exists' else 'provisioned successfully' }}"
