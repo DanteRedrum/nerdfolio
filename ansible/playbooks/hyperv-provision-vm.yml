@@ -23,6 +23,7 @@
             $Ansible.Result = "absent"
           }
       register: vm_check
+      changed_when: false
 
     - name: Create VM
       ansible.windows.win_powershell:

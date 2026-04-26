@@ -1,1 +1,2 @@
 ansible/inventory/group_vars/windows/vault.yml
+.vault_pass
