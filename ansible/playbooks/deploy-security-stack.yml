@@ -10,18 +10,6 @@
         state: directory
         mode: '0755'
 
-    - name: Copy security stack compose file
-      copy:
-        src: ../../docker/compose/security/security-stack.yml
-        dest: /opt/nerdfolio/security/security-stack.yml
-        mode: '0644'
-
-    - name: Copy security env file
-      copy:
-        src: ../../docker/env/security.env
-        dest: /opt/nerdfolio/security/.env
-        mode: '0600'
-
     - name: Set vm.max_map_count for Wazuh indexer
       sysctl:
         name: vm.max_map_count
@@ -29,15 +17,63 @@
         state: present
         reload: yes
 
-    - name: Deploy security stack
+    - name: Install curl and tar
+      apt:
+        name:
+          - curl
+          - tar
+        state: present
+
+    - name: Download Wazuh docker deployment
+      get_url:
+        url: https://github.com/wazuh/wazuh-docker/archive/refs/tags/v4.7.3.tar.gz
+        dest: /opt/nerdfolio/security/wazuh-docker.tar.gz
+        mode: '0644'
+
+    - name: Extract Wazuh docker deployment
+      unarchive:
+        src: /opt/nerdfolio/security/wazuh-docker.tar.gz
+        dest: /opt/nerdfolio/security/
+        remote_src: yes
+        creates: /opt/nerdfolio/security/wazuh-docker-4.7.3
+
+    - name: Generate Wazuh indexer certificates
+      community.docker.docker_compose_v2:
+        project_src: /opt/nerdfolio/security/wazuh-docker-4.7.3/single-node
+        files:
+          - generate-indexer-certs.yml
+        state: present
+      register: cert_result
+
+    - name: Remove cert generator container
+      community.docker.docker_compose_v2:
+        project_src: /opt/nerdfolio/security/wazuh-docker-4.7.3/single-node
+        files:
+          - generate-indexer-certs.yml
+        state: absent
+
+    - name: Deploy Wazuh single node stack
+      community.docker.docker_compose_v2:
+        project_src: /opt/nerdfolio/security/wazuh-docker-4.7.3/single-node
+        files:
+          - docker-compose.yml
+        state: present
+
+    - name: Copy CyberChef compose file
+      copy:
+        src: ../../docker/compose/security/cyberchef.yml
+        dest: /opt/nerdfolio/security/cyberchef.yml
+        mode: '0644'
+
+    - name: Deploy CyberChef
       community.docker.docker_compose_v2:
         project_src: /opt/nerdfolio/security
         files:
-          - security-stack.yml
+          - cyberchef.yml
         state: present
 
     - name: Report
       debug:
         msg:
-          - "Wazuh Dashboard — https://wazuh.nerdfolio"
+          - "Wazuh Dashboard — https://192.168.100.50"
           - "CyberChef — http://192.168.100.50:8000"
