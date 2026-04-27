@@ -1,0 +1,28 @@
+---
+- name: Deploy Portainer
+  hosts: nf-docker-ubuntu
+  become: true
+
+  tasks:
+    - name: Create Portainer directory
+      file:
+        path: /opt/nerdfolio/core
+        state: directory
+        mode: '0755'
+
+    - name: Copy Portainer compose file
+      copy:
+        src: ../../docker/compose/core/portainer.yml
+        dest: /opt/nerdfolio/core/portainer.yml
+        mode: '0644'
+
+    - name: Deploy Portainer
+      community.docker.docker_compose_v2:
+        project_src: /opt/nerdfolio/core
+        files:
+          - portainer.yml
+        state: present
+
+    - name: Report
+      debug:
+        msg: "Portainer deployed — http://192.168.100.20:9000"

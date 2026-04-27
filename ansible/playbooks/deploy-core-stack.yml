@@ -1,0 +1,38 @@
+---
+- name: Deploy Core Stack
+  hosts: nf-docker-ubuntu
+  become: true
+
+  tasks:
+    - name: Create core directory
+      file:
+        path: /opt/nerdfolio/core
+        state: directory
+        mode: '0755'
+
+    - name: Copy core stack compose file
+      copy:
+        src: ../../docker/compose/core/core-stack.yml
+        dest: /opt/nerdfolio/core/core-stack.yml
+        mode: '0644'
+
+    - name: Copy core env file
+      copy:
+        src: ../../docker/env/core.env
+        dest: /opt/nerdfolio/core/.env
+        mode: '0600'
+
+    - name: Deploy core stack
+      community.docker.docker_compose_v2:
+        project_src: /opt/nerdfolio/core
+        files:
+          - core-stack.yml
+        state: present
+        remove_orphans: true
+
+    - name: Report
+      debug:
+        msg:
+          - "Pi-hole admin — http://192.168.100.20:8080/admin"
+          - "Nginx Proxy Manager — http://192.168.100.20:81"
+          - "Uptime Kuma — http://192.168.100.20:3001"
