@@ -1,0 +1,36 @@
+---
+- name: Deploy AI Stack
+  hosts: nf-ai-ubuntu
+  become: true
+
+  tasks:
+    - name: Create AI directory
+      file:
+        path: /opt/nerdfolio/ai
+        state: directory
+        mode: '0755'
+
+    - name: Copy AI stack compose file
+      copy:
+        src: ../../docker/compose/ai/ai-stack.yml
+        dest: /opt/nerdfolio/ai/ai-stack.yml
+        mode: '0644'
+
+    - name: Copy AI env file
+      copy:
+        src: ../../docker/env/ai.env
+        dest: /opt/nerdfolio/ai/.env
+        mode: '0600'
+
+    - name: Deploy AI stack
+      community.docker.docker_compose_v2:
+        project_src: /opt/nerdfolio/ai
+        files:
+          - ai-stack.yml
+        state: present
+
+    - name: Report
+      debug:
+        msg:
+          - "Ollama API — http://192.168.100.30:11434"
+          - "Open WebUI — http://ai.nerdfolio"
