@@ -1,3 +1,10 @@
+# NOTE: This playbook downloads and runs the Kasm installer non-interactively.
+# Credentials are generated randomly and printed to stdout during install.
+# After running this playbook, SSH into nf-kasm-ubuntu and run:
+#   sudo bash /tmp/kasm_release/install.sh
+# to see credentials. Save them to Vaultwarden immediately.
+# The -n flag attempts non-interactive install but credentials may not be captured.
+# Manual install is recommended to capture credentials from stdout.
 ---
 - name: Deploy Kasm Workspaces
   hosts: nf-kasm-ubuntu
