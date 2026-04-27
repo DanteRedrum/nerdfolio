@@ -1,0 +1,31 @@
+---
+- name: Deploy Kasm Workspaces
+  hosts: nf-kasm-ubuntu
+  become: true
+
+  vars:
+    kasm_version: "1.18.1"
+    kasm_install_dir: /tmp
+
+  tasks:
+    - name: Download Kasm installer
+      get_url:
+        url: "https://kasm-static-content.s3.amazonaws.com/kasm_release_{{ kasm_version }}.tar.gz"
+        dest: "{{ kasm_install_dir }}/kasm_release_{{ kasm_version }}.tar.gz"
+        mode: '0644'
+
+    - name: Extract Kasm installer
+      unarchive:
+        src: "{{ kasm_install_dir }}/kasm_release_{{ kasm_version }}.tar.gz"
+        dest: "{{ kasm_install_dir }}"
+        remote_src: yes
+
+    - name: Run Kasm installer
+      shell: |
+        bash /tmp/kasm_release/install.sh --accept-eula -n
+      args:
+        creates: /opt/kasm
+
+    - name: Report
+      debug:
+        msg: "Kasm deployed — https://192.168.100.40"
