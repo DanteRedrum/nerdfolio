@@ -1,0 +1,73 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    ports:
+      - "8181:80"
+    environment:
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+      SIGNUPS_ALLOWED: "false"
+    volumes:
+      - vaultwarden_data:/data
+
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      - "222:22"
+    environment:
+      USER_UID: 1000
+      USER_GID: 1000
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__database__PATH: /data/gitea/gitea.db
+      TZ: America/Chicago
+    volumes:
+      - gitea_data:/data
+
+  code-server:
+    image: lscr.io/linuxserver/code-server:latest
+    container_name: code-server
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: America/Chicago
+      PASSWORD: ${CODE_SERVER_PASSWORD}
+      SUDO_PASSWORD: ${CODE_SERVER_SUDO_PASSWORD}
+    volumes:
+      - code_server_data:/config
+
+  dashy:
+    image: lissy93/dashy:latest
+    container_name: dashy
+    restart: unless-stopped
+    ports:
+      - "4000:8080"
+    volumes:
+      - dashy_data:/app/user-data
+
+  stirling-pdf:
+    image: frooodle/s-pdf:latest
+    container_name: stirling-pdf
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    volumes:
+      - stirling_data:/usr/share/tessdata
+
+volumes:
+  vaultwarden_data:
+  gitea_data:
+  code_server_data:
+  dashy_data:
+  stirling_data:
+
+networks:
+  default:
+    external: true
+    name: core_default

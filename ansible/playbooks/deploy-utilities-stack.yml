@@ -1,0 +1,39 @@
+---
+- name: Deploy Utilities Stack
+  hosts: nf-docker-ubuntu
+  become: true
+
+  tasks:
+    - name: Create utilities directory
+      file:
+        path: /opt/nerdfolio/utilities
+        state: directory
+        mode: '0755'
+
+    - name: Copy utilities stack compose file
+      copy:
+        src: ../../docker/compose/utilities/utilities-stack.yml
+        dest: /opt/nerdfolio/utilities/utilities-stack.yml
+        mode: '0644'
+
+    - name: Copy utilities env file
+      copy:
+        src: ../../docker/env/utilities.env
+        dest: /opt/nerdfolio/utilities/.env
+        mode: '0600'
+
+    - name: Deploy utilities stack
+      community.docker.docker_compose_v2:
+        project_src: /opt/nerdfolio/utilities
+        files:
+          - utilities-stack.yml
+        state: present
+
+    - name: Report
+      debug:
+        msg:
+          - "Vaultwarden — http://vault.nerdfolio"
+          - "Gitea — http://git.nerdfolio"
+          - "Code Server — http://code.nerdfolio"
+          - "Dashy — http://dash.nerdfolio"
+          - "Stirling PDF — http://pdf.nerdfolio"

@@ -1,0 +1,20 @@
+---
+- name: Set DNS to Pi-hole
+  hosts: lab
+  become: true
+
+  tasks:
+    - name: Set Pi-hole as DNS server
+      copy:
+        content: "nameserver 192.168.100.20\nnameserver 8.8.8.8\n"
+        dest: /etc/resolv.conf
+        mode: '0644'
+
+    - name: Verify DNS resolution
+      command: nslookup google.com
+      register: dns_test
+      changed_when: false
+
+    - name: Report DNS status
+      debug:
+        msg: "{{ 'DNS resolving correctly' if dns_test.rc == 0 else 'DNS resolution failed' }}"
