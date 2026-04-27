@@ -1,0 +1,43 @@
+---
+- name: Deploy Security Stack
+  hosts: nf-security-ubuntu
+  become: true
+
+  tasks:
+    - name: Create security directory
+      file:
+        path: /opt/nerdfolio/security
+        state: directory
+        mode: '0755'
+
+    - name: Copy security stack compose file
+      copy:
+        src: ../../docker/compose/security/security-stack.yml
+        dest: /opt/nerdfolio/security/security-stack.yml
+        mode: '0644'
+
+    - name: Copy security env file
+      copy:
+        src: ../../docker/env/security.env
+        dest: /opt/nerdfolio/security/.env
+        mode: '0600'
+
+    - name: Set vm.max_map_count for Wazuh indexer
+      sysctl:
+        name: vm.max_map_count
+        value: '262144'
+        state: present
+        reload: yes
+
+    - name: Deploy security stack
+      community.docker.docker_compose_v2:
+        project_src: /opt/nerdfolio/security
+        files:
+          - security-stack.yml
+        state: present
+
+    - name: Report
+      debug:
+        msg:
+          - "Wazuh Dashboard — https://wazuh.nerdfolio"
+          - "CyberChef — http://192.168.100.50:8000"

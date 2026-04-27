@@ -163,11 +163,56 @@ After provisioning and installing Ubuntu:
 
 ## IP Address Assignments
 
-| VM | IP |
+| VM | IP | Notes |
+|---|---|---|
+| Windows Host | 192.168.100.1 | |
+| nf-ansible-ubuntu | 192.168.100.10 | |
+| nf-docker-ubuntu | 192.168.100.20 | |
+| nf-ai-ubuntu | 192.168.100.30 | On demand |
+| nf-kasm-ubuntu | 192.168.100.40 | On demand |
+| nf-security-ubuntu | 192.168.100.50 | On demand |
+
+## Direct IP Access
+
+Some services are accessed directly by IP rather than hostname:
+
+| Service | URL |
 |---|---|
-| Windows Host | 192.168.100.1 |
-| nf-ansible-ubuntu | 192.168.100.10 |
-| nf-docker-ubuntu | 192.168.100.20 |
-| nf-ai-ubuntu | 192.168.100.30 |
-| nf-kasm-ubuntu | 192.168.100.40 |
-| nf-security-ubuntu | 192.168.100.50 |
+| NPM | http://192.168.100.20:81 |
+| Wazuh | https://192.168.100.50 |
+
+## Service Access Reference
+
+### Always-On Services (nf-docker-ubuntu — 192.168.100.20)
+
+| Service | URL |
+|---|---|
+| Portainer | http://portainer.nerdfolio |
+| Pi-hole | http://pihole.nerdfolio |
+| Nginx Proxy Manager | http://192.168.100.20:81 |
+| Uptime Kuma | http://uptime.nerdfolio |
+| Vaultwarden | http://vault.nerdfolio |
+| Gitea | http://git.nerdfolio |
+| Code Server | http://code.nerdfolio |
+| Dashy | http://dash.nerdfolio |
+| Stirling PDF | http://pdf.nerdfolio |
+
+### On-Demand — AI (nf-ai-ubuntu — 192.168.100.30)
+
+| Service | URL |
+|---|---|
+| Open WebUI | http://ai.nerdfolio |
+| Ollama API | http://192.168.100.30:11434 |
+
+### On-Demand — Security (nf-security-ubuntu — 192.168.100.50)
+
+| Service | URL |
+|---|---|
+| Wazuh Dashboard | https://192.168.100.50 |
+| CyberChef | http://192.168.100.50:8000 |
+
+### On-Demand — Kasm (nf-kasm-ubuntu — 192.168.100.40)
+
+| Service | URL |
+|---|---|
+| Kasm | https://192.168.100.40 |
