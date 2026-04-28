@@ -35,8 +35,15 @@ Get-Uptime -ComputerName TARGETPC
 Get-HWVersion -ComputerName TARGETPC -Name "Intel"
 ```
 
-### Notes
+## Changelog
 
-- `Get-Uptime` has a known issue with multiple computer names — documented in the TODO comment
-- `Get-HWVersion` consolidates two slightly different versions from the original codebase into one multi-computer capable function
-- WMI calls will eventually be migrated to CIM equivalents (`Get-CimInstance`)
+### v2.1
+- Migrated all WMI calls to CIM
+- Fixed Get-Uptime multi-computer parameter shadowing bug
+- Added try/catch error handling throughout
+- Replaced New-Object PSObject with [PSCustomObject] accelerator
+
+### v2.0
+- Initial refactor for Nerdfolio Phase 4
+- Removed hardcoded values
+- Added comment-based help

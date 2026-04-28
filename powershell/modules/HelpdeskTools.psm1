@@ -11,15 +11,16 @@
 
 .NOTES
     Author: Daniel Avila
-    Version: 2.0
+    Version: 2.1
     Refactored for Nerdfolio — Phase 4
+    Changes in 2.1:
+      - Migrated all WMI calls to CIM
+      - Fixed Get-Uptime multi-computer parameter shadowing bug
+      - Added try/catch error handling throughout
+      - Replaced New-Object PSObject with [PSCustomObject] accelerator
 #>
 
 
-# ——————————————————————————
-# Function Name: p
-# Quick ping test — replacement for Test-Connection one-liner
-# ——————————————————————————
 function p {
     <#
     .SYNOPSIS
@@ -36,81 +37,84 @@ function p {
 }
 
 
-# ——————————————————————————
-# Function Name: Get-LoggedIn
-# Return the current logged-in user of a remote machine.
-# ——————————————————————————
 function Get-LoggedIn {
     <#
     .SYNOPSIS
         Returns the currently logged-in user on a remote computer.
-    .PARAMETER computername
+    .PARAMETER ComputerName
         One or more computer names to query.
     .EXAMPLE
-        Get-LoggedIn -computername TARGETPC
+        Get-LoggedIn -ComputerName TARGETPC
+        Get-LoggedIn -ComputerName PC1,PC2,PC3
     #>
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$True)]
-        [string[]]$computername
+        [Parameter(Mandatory=$true)]
+        [string[]]$ComputerName
     )
 
-    foreach ($pc in $computername) {
-        $logged_in = (Get-WmiObject Win32_ComputerSystem -ComputerName $pc).Username
-        if ($logged_in) {
-            $name = $logged_in.Split("\")[1]
-            "{0}: {1}" -f $pc, $name
-        } else {
-            "{0}: No user logged in" -f $pc
+    foreach ($pc in $ComputerName) {
+        try {
+            $system = Get-CimInstance -ClassName Win32_ComputerSystem -ComputerName $pc
+            if ($system.UserName) {
+                $name = $system.UserName.Split("\")[1]
+                [PSCustomObject]@{
+                    ComputerName = $pc
+                    LoggedInUser = $name
+                }
+            } else {
+                [PSCustomObject]@{
+                    ComputerName = $pc
+                    LoggedInUser = "No user logged in"
+                }
+            }
+        }
+        catch {
+            Write-Warning "Failed to query $pc - $_"
         }
     }
 }
 
 
-# ——————————————————————————
-# Function Name: Get-Uptime
-# Calculate and display system uptime on a local or remote machine.
-# ——————————————————————————
 function Get-Uptime {
     <#
     .SYNOPSIS
         Returns system uptime for a local or remote computer.
     .PARAMETER ComputerName
-        Computer name to query. Defaults to localhost.
+        One or more computer names to query. Defaults to localhost.
     .EXAMPLE
         Get-Uptime
         Get-Uptime -ComputerName TARGETPC
+        Get-Uptime -ComputerName PC1,PC2,PC3
     .NOTES
-        TODO: Fix multiple computer name handling and convertdate errors
-        when providing more than one computer name.
+        Multi-computer support fixed in Phase 4 refactor.
+        Original bug: loop variable shadowed the parameter.
     #>
     [CmdletBinding()]
     param (
-        [string]$ComputerName = 'localhost'
+        [string[]]$ComputerName = 'localhost'
     )
 
     foreach ($Computer in $ComputerName) {
-        $os   = Get-WmiObject -Class Win32_OperatingSystem -ComputerName $Computer
-        $diff = $os.ConvertToDateTime($os.LocalDateTime) - $os.ConvertToDateTime($os.LastBootUpTime)
+        try {
+            $os   = Get-CimInstance -ClassName Win32_OperatingSystem -ComputerName $Computer
+            $diff = (Get-Date) - $os.LastBootUpTime
 
-        $properties = @{
-            ComputerName   = $Computer
-            UptimeDays     = $diff.Days
-            UptimeHours    = $diff.Hours
-            UptimeMinutes  = $diff.Minutes
-            UptimeSeconds  = $diff.Seconds
+            [PSCustomObject]@{
+                ComputerName  = $Computer
+                UptimeDays    = $diff.Days
+                UptimeHours   = $diff.Hours
+                UptimeMinutes = $diff.Minutes
+                UptimeSeconds = $diff.Seconds
+            }
         }
-
-        New-Object -TypeName PSObject -Property $properties
+        catch {
+            Write-Warning "Failed to query $Computer - $_"
+        }
     }
 }
 
 
-# ——————————————————————————
-# Function Name: Get-HWVersion
-# Retrieves device name, driver date, and driver version from a remote PC.
-# Two versions — single computer and multi-computer capable.
-# ——————————————————————————
 function Get-HWVersion {
     <#
     .SYNOPSIS
@@ -124,7 +128,6 @@ function Get-HWVersion {
         Full or partial device name to search for.
     .EXAMPLE
         Get-HWVersion -ComputerName TARGETPC -Name "Radeon"
-    .EXAMPLE
         Get-HWVersion -ComputerName TARGETPC -Name "Intel"
     #>
     [CmdletBinding()]
@@ -139,24 +142,26 @@ function Get-HWVersion {
     foreach ($Computer in $ComputerName) {
         Write-Verbose "Verifying $Computer is online"
         if (-not (Test-Connection $Computer -Count 1 -Quiet)) {
-            Write-Output "$Computer not online"
+            Write-Warning "$Computer is not online — skipping"
             continue
         }
 
-        Write-Verbose "Pulling driver data from $Computer"
-        Get-WmiObject -Query "SELECT * FROM Win32_PnPSignedDriver WHERE DeviceName LIKE '%$Name%'" `
-            -ComputerName $Computer |
-            Sort-Object DeviceName |
-            Select-Object `
-                @{Name="Server";      Expression={$_.__Server}},
-                DeviceName,
-                @{Name="DriverDate";  Expression={
-                    [System.Management.ManagementDateTimeConverter]::ToDateTime($_.DriverDate).ToString("MM/dd/yyyy")
-                }},
-                DriverVersion
+        try {
+            Write-Verbose "Pulling driver data from $Computer"
+            Get-CimInstance -Query "SELECT * FROM Win32_PnPSignedDriver WHERE DeviceName LIKE '%$Name%'" `
+                -ComputerName $Computer |
+                Sort-Object DeviceName |
+                Select-Object `
+                    @{Name="Server";     Expression={$_.PSComputerName}},
+                    DeviceName,
+                    @{Name="DriverDate"; Expression={$_.DriverDate.ToString("MM/dd/yyyy")}},
+                    DriverVersion
+        }
+        catch {
+            Write-Warning "Failed to query $Computer - $_"
+        }
     }
 }
 
 
-# Export all functions
 Export-ModuleMember -Function p, Get-LoggedIn, Get-Uptime, Get-HWVersion
