@@ -17,7 +17,9 @@
     Author: Daniel Avila
     Requires: ActiveDirectory module, appropriate AD permissions
     Refactored for Nerdfolio — Phase 4
-    Security fix: Removed plaintext password output from original script.
+    Security note: Password is displayed in plaintext after reset intentionally —
+    allows helpdesk to read it back to the user or verify spelling before
+    ending the call. Remove Write-Host line if operating in a recorded environment.
     ChangePasswordAtLogon left as $false — adjust per policy.
 #>
 
@@ -37,6 +39,7 @@ if ($null -eq $PWReset) {
             Set-ADAccountPassword -Identity $UserPass -NewPassword $NewPassword -Reset
             Set-ADUser -Identity $UserPass -ChangePasswordAtLogon:$false -ErrorAction Continue
             Write-Host "$UserPass password reset successfully." -ForegroundColor Green
+            Write-Host "New password: $(([System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($NewPassword))))" -ForegroundColor Cyan
         }
         catch {
             Write-Warning "Failed to reset password for $UserPass - $_"
