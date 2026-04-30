@@ -1,0 +1,6 @@
+[
+    { "Name": "Ticket System",    "Url": "https://helpdesk.yourdomain.com" },
+    { "Name": "Adobe Admin",      "Url": "https://adminconsole.adobe.com" },
+    { "Name": "Airwatch",         "Url": "https://your-airwatch-url.com" },
+    { "Name": "ERPM",             "Url": "https://your-erpm-url.com" }
+]
