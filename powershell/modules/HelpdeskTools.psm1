@@ -12,7 +12,7 @@
 .NOTES
     Author: Daniel Avila
     Version: 2.1
-    Refactored for Nerdfolio — Phase 4
+    Refactored for Nerdfolio - Phase 4
     Changes in 2.1:
       - Migrated all WMI calls to CIM
       - Fixed Get-Uptime multi-computer parameter shadowing bug
@@ -142,7 +142,7 @@ function Get-HWVersion {
     foreach ($Computer in $ComputerName) {
         Write-Verbose "Verifying $Computer is online"
         if (-not (Test-Connection $Computer -Count 1 -Quiet)) {
-            Write-Warning "$Computer is not online — skipping"
+            Write-Warning "$Computer is not online - skipping"
             continue
         }
 
@@ -162,6 +162,21 @@ function Get-HWVersion {
         }
     }
 }
+function Get-CrowdStrikeStatus {
+    param([string]$ComputerName)
+    try {
+        Get-CimInstance -ComputerName $ComputerName -ClassName Win32_Product `
+            -Filter "Vendor='CrowdStrike, Inc.'" -ErrorAction Stop
+    }
+    catch { $null }
+}
 
+function Get-RemoteServiceStatus {
+    param([string]$ComputerName, [string]$ServiceName)
+    try {
+        Get-Service -ComputerName $ComputerName -Name $ServiceName -ErrorAction Stop
+    }
+    catch { $null }
+}
 
-Export-ModuleMember -Function p, Get-LoggedIn, Get-Uptime, Get-HWVersion
+Export-ModuleMember -Function p, Get-LoggedIn, Get-Uptime, Get-HWVersion, Get-CrowdStrikeStatus, Get-RemoteServiceStatus

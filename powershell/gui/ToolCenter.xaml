@@ -148,7 +148,6 @@
             <Setter Property="FontSize"   Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin"     Value="0,0,0,6"/>
-            <Setter Property="TextTransform" Value="Uppercase"/>
         </Style>
 
     </Window.Resources>
@@ -182,8 +181,7 @@
                     <TextBlock Text="TOOL CENTER"
                                Foreground="{StaticResource AccentTeal}"
                                FontSize="18"
-                               FontWeight="Bold"
-                               LetterSpacing="2"/>
+                               FontWeight="Bold"/>
                     <TextBlock Text="Nerdfolio Helpdesk Suite"
                                Foreground="{StaticResource TextSecondary}"
                                FontSize="11"/>
@@ -242,23 +240,27 @@
 
                     <TextBlock Text="NAVIGATION"
                                Style="{StaticResource SectionLabel}"
-                               Margin="20,0,0,12"/>
+                               Foreground="{StaticResource AccentTeal}"
+                               FontSize="10"
+                               FontWeight="Bold"
+                               Margin="20,0,0,12"
+                               Opacity="0.8"/>
 
                     <Button x:Name="NavAD"
-                            Content="🔐  Active Directory"
+                            Content="Active Directory"
                             Style="{StaticResource NavButton}"
                             Tag="Active"/>
 
                     <Button x:Name="NavTools"
-                            Content="🛠️  Tools"
+                            Content="Tools"
                             Style="{StaticResource NavButton}"/>
 
                     <Button x:Name="NavFavorites"
-                            Content="⭐  Favorites"
+                            Content="Favorites"
                             Style="{StaticResource NavButton}"/>
 
                     <Button x:Name="NavWeb"
-                            Content="🌐  Web Links"
+                            Content="Web Links"
                             Style="{StaticResource NavButton}"/>
 
                     <!-- Separator -->
@@ -268,10 +270,14 @@
 
                     <TextBlock Text="SYSTEM"
                                Style="{StaticResource SectionLabel}"
-                               Margin="20,0,0,12"/>
+                               Foreground="{StaticResource AccentTeal}"
+                               FontSize="10"
+                               FontWeight="Bold"
+                               Margin="20,0,0,12"
+                               Opacity="0.8"/>
 
                     <Button x:Name="NavSettings"
-                            Content="⚙️  Settings"
+                            Content="Settings"
                             Style="{StaticResource NavButton}"/>
 
                 </StackPanel>
@@ -411,27 +417,12 @@
                                    Style="{StaticResource SectionLabel}"/>
 
                         <TextBlock Text="Configure favorites in favorites.json"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   FontSize="12"
-                                   Margin="0,0,0,16"/>
+                                      Foreground="{StaticResource TextSecondary}"
+                                      FontSize="12"
+                                      Margin="0,0,0,16"/>
 
-                        <!-- Dynamic favorites load here -->
-                        <ItemsControl x:Name="FavoritesList">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Columns="2"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Content="{Binding Name}"
-                                            Tag="{Binding Url}"
-                                            Style="{StaticResource ActionButton}"
-                                            Margin="4"
-                                            x:Name="FavoriteButton"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <WrapPanel x:Name="FavoritesPanel"
+                                   Orientation="Horizontal"/>
                     </StackPanel>
 
                     <!-- WEB LINKS PANEL -->
@@ -462,8 +453,8 @@
                                     Content="ERPM"
                                     Style="{StaticResource ActionButton}"
                                     Margin="8,0,0,8"/>
-                        </UniformGrid>
-                    </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
 
                     <!-- SETTINGS PANEL -->
                     <StackPanel x:Name="PanelSettings" Visibility="Collapsed">
@@ -587,7 +578,7 @@
                                    FontSize="11" Margin="0,0,0,12"/>
                         <TextBlock x:Name="InfoModel"
                                    Grid.Row="0" Grid.Column="1"
-                                   Text="—"
+                                   Text="N/A"
                                    Foreground="{StaticResource TextPrimary}"
                                    FontSize="11" Margin="0,0,0,12"
                                    HorizontalAlignment="Right"/>
@@ -599,7 +590,7 @@
                                    FontSize="11" Margin="0,0,0,12"/>
                         <TextBlock x:Name="InfoUser"
                                    Grid.Row="1" Grid.Column="1"
-                                   Text="—"
+                                   Text="N/A"
                                    Foreground="{StaticResource TextPrimary}"
                                    FontSize="11" Margin="0,0,0,12"
                                    HorizontalAlignment="Right"/>
@@ -611,7 +602,7 @@
                                    FontSize="11" Margin="0,0,0,12"/>
                         <TextBlock x:Name="InfoOS"
                                    Grid.Row="2" Grid.Column="1"
-                                   Text="—"
+                                   Text="N/A"
                                    Foreground="{StaticResource TextPrimary}"
                                    FontSize="11" Margin="0,0,0,12"
                                    HorizontalAlignment="Right"
@@ -628,16 +619,16 @@
                                     HorizontalAlignment="Right"
                                     Margin="0,0,0,12">
                             <TextBlock x:Name="InfoIP"
-                                       Text="—"
+                                       Text="N/A"
                                        Foreground="{StaticResource TextPrimary}"
                                        FontSize="11"
                                        VerticalAlignment="Center"/>
                             <Button x:Name="BtnCopyIP"
-                                    Content="⎘"
-                                    Width="20" Height="20"
-                                    FontSize="11"
+                                    Content="copy"
+                                    Width="32" Height="20"
+                                    FontSize="9"
                                     Background="Transparent"
-                                    Foreground="{StaticResource TextSecondary}"
+                                    Foreground="{StaticResource AccentTeal}"
                                     BorderThickness="0"
                                     Cursor="Hand"
                                     Margin="4,0,0,0"
@@ -654,16 +645,16 @@
                                     HorizontalAlignment="Right"
                                     Margin="0,0,0,12">
                             <TextBlock x:Name="InfoMAC"
-                                       Text="—"
+                                       Text="N/A"
                                        Foreground="{StaticResource TextPrimary}"
                                        FontSize="11"
                                        VerticalAlignment="Center"/>
                             <Button x:Name="BtnCopyMAC"
-                                    Content="⎘"
-                                    Width="20" Height="20"
-                                    FontSize="11"
+                                    Content="copy"
+                                    Width="32" Height="20"
+                                    FontSize="9"
                                     Background="Transparent"
-                                    Foreground="{StaticResource TextSecondary}"
+                                    Foreground="{StaticResource AccentTeal}"
                                     BorderThickness="0"
                                     Cursor="Hand"
                                     Margin="4,0,0,0"
@@ -680,16 +671,16 @@
                                     HorizontalAlignment="Right"
                                     Margin="0,0,0,12">
                             <TextBlock x:Name="InfoSerial"
-                                       Text="—"
+                                       Text="N/A"
                                        Foreground="{StaticResource TextPrimary}"
                                        FontSize="11"
                                        VerticalAlignment="Center"/>
                             <Button x:Name="BtnCopySerial"
-                                    Content="⎘"
-                                    Width="20" Height="20"
-                                    FontSize="11"
+                                    Content="copy"
+                                    Width="32" Height="20"
+                                    FontSize="9"
                                     Background="Transparent"
-                                    Foreground="{StaticResource TextSecondary}"
+                                    Foreground="{StaticResource AccentTeal}"
                                     BorderThickness="0"
                                     Cursor="Hand"
                                     Margin="4,0,0,0"
@@ -703,7 +694,7 @@
                                    FontSize="11" Margin="0,0,0,12"/>
                         <TextBlock x:Name="InfoUptime"
                                    Grid.Row="6" Grid.Column="1"
-                                   Text="—"
+                                   Text="N/A"
                                    Foreground="{StaticResource TextPrimary}"
                                    FontSize="11" Margin="0,0,0,12"
                                    HorizontalAlignment="Right"/>
@@ -715,7 +706,7 @@
                                    FontSize="11" Margin="0,0,0,12"/>
                         <TextBlock x:Name="InfoTPM"
                                    Grid.Row="7" Grid.Column="1"
-                                   Text="—"
+                                   Text="N/A"
                                    Foreground="{StaticResource TextPrimary}"
                                    FontSize="11" Margin="0,0,0,12"
                                    HorizontalAlignment="Right"/>
@@ -723,7 +714,7 @@
 
                     <!-- Refresh button -->
                     <Button x:Name="BtnRefreshInfo"
-                            Content="↻  Refresh"
+                            Content="Refresh"
                             Style="{StaticResource ActionButton}"
                             Margin="0,8,0,0"/>
 

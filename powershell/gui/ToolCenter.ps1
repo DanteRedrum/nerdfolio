@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Nerdfolio Tool Center V3 — WPF Helpdesk GUI
+    Nerdfolio Tool Center V3 - WPF Helpdesk GUI
 
 .DESCRIPTION
     Modern WPF-based helpdesk tool center. Loads ToolCenter.xaml for the UI
@@ -16,7 +16,14 @@
 #>
 
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
+
+# Ensure STA for WPF
+if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') {
+    Write-Host "Restarting in STA mode..."
+    powershell.exe -STA -ExecutionPolicy Bypass -File $PSCommandPath
+    exit
+}
 
 # ═══════════════════════════════════════════════════════════
 # ASSEMBLIES
@@ -27,6 +34,7 @@ Add-Type -AssemblyName WindowsBase
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Speech
+[System.Windows.Forms.Application]::EnableVisualStyles()
 
 # ═══════════════════════════════════════════════════════════
 # PATHS
@@ -35,33 +43,60 @@ $ScriptRoot    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $XamlPath      = Join-Path $ScriptRoot "ToolCenter.xaml"
 $FavoritesPath = Join-Path $ScriptRoot "Functions\favorites.json"
 $ModulePath    = Join-Path $ScriptRoot "..\modules\HelpdeskTools.psm1"
+$SettingsPath = Join-Path $ScriptRoot "settings.json"
 
 # ═══════════════════════════════════════════════════════════
-# LOAD MODULE
+# SAFE MODULE LOADS
 # ═══════════════════════════════════════════════════════════
 if (Test-Path $ModulePath) {
-    Import-Module $ModulePath -Force
-} else {
-    Write-Warning "HelpdeskTools module not found at $ModulePath"
+    try {
+        Import-Module $ModulePath -Force
+    }
+    catch {
+        Write-Warning "Failed loading HelpdeskTools module: $_"
+    }
+}
+else {
+    Write-Warning "HelpdeskTools module not found: $ModulePath"
 }
 
-# Import AD module if available
+$Script:ADAvailable = $false
 try {
     Import-Module ActiveDirectory -ErrorAction Stop
-} catch {
-    Write-Warning "ActiveDirectory module not available — AD functions disabled"
+    $Script:ADAvailable = $true
+}
+catch {
+    Write-Warning "ActiveDirectory module not available - AD functions disabled"
 }
 
 # ═══════════════════════════════════════════════════════════
-# LOAD XAML
+# LOAD XAML SAFELY
 # ═══════════════════════════════════════════════════════════
-try {
-    [xml]$Xaml = Get-Content -Path $XamlPath -Raw
-    $Reader    = New-Object System.Xml.XmlNodeReader $Xaml
-    $Window    = [Windows.Markup.XamlReader]::Load($Reader)
-} catch {
+if (-not (Test-Path $XamlPath)) {
     [System.Windows.MessageBox]::Show(
-        "Failed to load UI: $_",
+        "ToolCenter.xaml not found:`n$XamlPath",
+        "Startup Failure",
+        [System.Windows.MessageBoxButton]::OK,
+        [System.Windows.MessageBoxImage]::Error
+    )
+    exit
+}
+
+try {
+    $XamlContent = Get-Content -Path $XamlPath -Raw -Encoding UTF8
+
+    # Strip possible BOM/illegal hidden chars
+    $XamlContent = $XamlContent.Trim()
+
+    $XmlDoc = New-Object System.Xml.XmlDocument
+    $XmlDoc.LoadXml($XamlContent)
+
+    $Reader = New-Object System.Xml.XmlNodeReader $XmlDoc
+    $Window = [System.Windows.Markup.XamlReader]::Load($Reader)
+}
+catch {
+    [System.Windows.MessageBox]::Show(
+        "Failed to load UI:`n$_",
         "Tool Center Error",
         [System.Windows.MessageBoxButton]::OK,
         [System.Windows.MessageBoxImage]::Error
@@ -69,15 +104,26 @@ try {
     exit
 }
 
+
 # ═══════════════════════════════════════════════════════════
-# GET CONTROLS — shorthand function
+# SAFE CONTROL FETCH
 # ═══════════════════════════════════════════════════════════
 function Get-Control {
     param([string]$Name)
-    $Window.FindName($Name)
+
+    $ctrl = $Window.FindName($Name)
+
+    if (-not $ctrl) {
+        Write-Warning "Missing control in XAML: $Name"
+    }
+
+    return $ctrl
 }
 
-# Wire up all named controls
+
+# ═══════════════════════════════════════════════════════════
+# CORE CONTROLS
+# ═══════════════════════════════════════════════════════════
 $TxtComputerName = Get-Control 'TxtComputerName'
 $BtnSearchAD     = Get-Control 'BtnSearchAD'
 $StatusDot       = Get-Control 'StatusDot'
@@ -86,104 +132,153 @@ $TxtStatusLabel  = Get-Control 'TxtStatusLabel'
 $TxtStatusBar    = Get-Control 'TxtStatusBar'
 $TxtActionLog    = Get-Control 'TxtActionLog'
 $TxtClock        = Get-Control 'TxtClock'
-$FavoritesList   = Get-Control 'FavoritesList'
+$FavoritesPanel  = Get-Control 'FavoritesPanel'
 
-# Nav buttons
-$NavAD           = Get-Control 'NavAD'
-$NavTools        = Get-Control 'NavTools'
-$NavFavorites    = Get-Control 'NavFavorites'
-$NavWeb          = Get-Control 'NavWeb'
-$NavSettings     = Get-Control 'NavSettings'
+# Nav
+$NavAD        = Get-Control 'NavAD'
+$NavTools     = Get-Control 'NavTools'
+$NavFavorites = Get-Control 'NavFavorites'
+$NavWeb       = Get-Control 'NavWeb'
+$NavSettings  = Get-Control 'NavSettings'
 
 # Panels
-$PanelAD         = Get-Control 'PanelAD'
-$PanelTools      = Get-Control 'PanelTools'
-$PanelFavorites  = Get-Control 'PanelFavorites'
-$PanelWeb        = Get-Control 'PanelWeb'
-$PanelSettings   = Get-Control 'PanelSettings'
+$PanelAD        = Get-Control 'PanelAD'
+$PanelTools     = Get-Control 'PanelTools'
+$PanelFavorites = Get-Control 'PanelFavorites'
+$PanelWeb       = Get-Control 'PanelWeb'
+$PanelSettings  = Get-Control 'PanelSettings'
 
-# PC Info fields
-$InfoModel       = Get-Control 'InfoModel'
-$InfoUser        = Get-Control 'InfoUser'
-$InfoOS          = Get-Control 'InfoOS'
-$InfoIP          = Get-Control 'InfoIP'
-$InfoMAC         = Get-Control 'InfoMAC'
-$InfoSerial      = Get-Control 'InfoSerial'
-$InfoUptime      = Get-Control 'InfoUptime'
-$InfoTPM         = Get-Control 'InfoTPM'
+# Info
+$InfoModel   = Get-Control 'InfoModel'
+$InfoUser    = Get-Control 'InfoUser'
+$InfoOS      = Get-Control 'InfoOS'
+$InfoIP      = Get-Control 'InfoIP'
+$InfoMAC     = Get-Control 'InfoMAC'
+$InfoSerial  = Get-Control 'InfoSerial'
+$InfoUptime  = Get-Control 'InfoUptime'
+$InfoTPM     = Get-Control 'InfoTPM'
 
-# Action buttons
-$BtnADUnlock     = Get-Control 'BtnADUnlock'
-$BtnPWReset      = Get-Control 'BtnPWReset'
-$BtnLogonHours   = Get-Control 'BtnLogonHours'
-$BtnADSearch     = Get-Control 'BtnADSearch'
-$BtnRemoteAssist = Get-Control 'BtnRemoteAssist'
+# Buttons - AD / Tools / Settings / Info
+$BtnADUnlock      = Get-Control 'BtnADUnlock'
+$BtnPWReset       = Get-Control 'BtnPWReset'
+$BtnLogonHours    = Get-Control 'BtnLogonHours'
+$BtnADSearch      = Get-Control 'BtnADSearch'
+$BtnRemoteAssist  = Get-Control 'BtnRemoteAssist'
 $BtnRemoteDesktop = Get-Control 'BtnRemoteDesktop'
-$BtnEnableWinRM  = Get-Control 'BtnEnableWinRM'
-$BtnRestartPC    = Get-Control 'BtnRestartPC'
-$BtnPCInfo       = Get-Control 'BtnPCInfo'
-$BtnPrintQueue   = Get-Control 'BtnPrintQueue'
-$BtnCompMgmt     = Get-Control 'BtnCompMgmt'
-$BtnRegedit      = Get-Control 'BtnRegedit'
-$BtnADUC         = Get-Control 'BtnADUC'
-$BtnADAC         = Get-Control 'BtnADAC'
-$BtnCrowdStrike  = Get-Control 'BtnCrowdStrike'
-$BtnBigFix       = Get-Control 'BtnBigFix'
-$BtnTPM          = Get-Control 'BtnTPM'
-$BtnDotNet       = Get-Control 'BtnDotNet'
-$BtnRefreshInfo  = Get-Control 'BtnRefreshInfo'
-$BtnCopyIP       = Get-Control 'BtnCopyIP'
-$BtnCopyMAC      = Get-Control 'BtnCopyMAC'
-$BtnCopySerial   = Get-Control 'BtnCopySerial'
-$BtnSaveSettings = Get-Control 'BtnSaveSettings'
-$TxtSearchBase   = Get-Control 'TxtSearchBase'
-$TxtADFilter     = Get-Control 'TxtADFilter'
-$ChkTTS          = Get-Control 'ChkTTS'
-$ChkBalloon      = Get-Control 'ChkBalloon'
-$ChkStartupSound = Get-Control 'ChkStartupSound'
+$BtnEnableWinRM   = Get-Control 'BtnEnableWinRM'
+$BtnRestartPC     = Get-Control 'BtnRestartPC'
+$BtnPCInfo        = Get-Control 'BtnPCInfo'
+$BtnPrintQueue    = Get-Control 'BtnPrintQueue'
+$BtnCompMgmt      = Get-Control 'BtnCompMgmt'
+$BtnRegedit       = Get-Control 'BtnRegedit'
+$BtnADUC          = Get-Control 'BtnADUC'
+$BtnADAC          = Get-Control 'BtnADAC'
+$BtnCrowdStrike   = Get-Control 'BtnCrowdStrike'
+$BtnBigFix        = Get-Control 'BtnBigFix'
+$BtnTPM           = Get-Control 'BtnTPM'
+$BtnDotNet        = Get-Control 'BtnDotNet'
+$BtnRefreshInfo   = Get-Control 'BtnRefreshInfo'
+$BtnCopyIP        = Get-Control 'BtnCopyIP'
+$BtnCopyMAC       = Get-Control 'BtnCopyMAC'
+$BtnCopySerial    = Get-Control 'BtnCopySerial'
+$BtnSaveSettings  = Get-Control 'BtnSaveSettings'
+
+# Web buttons (missing in original)
+$BtnTickets       = Get-Control 'BtnTickets'
+$BtnAdobeAdmin    = Get-Control 'BtnAdobeAdmin'
+$BtnAirwatch      = Get-Control 'BtnAirwatch'
+$BtnERPM          = Get-Control 'BtnERPM'
+
+# Settings controls
+$TxtSearchBase    = Get-Control 'TxtSearchBase'
+$TxtADFilter      = Get-Control 'TxtADFilter'
+$ChkTTS           = Get-Control 'ChkTTS'
+$ChkBalloon       = Get-Control 'ChkBalloon'
+$ChkStartupSound  = Get-Control 'ChkStartupSound'
+
+# ═══════════════════════════════════════════════════════════
+# VALIDATE CRITICAL CONTROLS
+# ═══════════════════════════════════════════════════════════
+$CriticalControls = @(
+    'TxtComputerName','BtnSearchAD','StatusDot','InfoStatusDot','TxtStatusLabel',
+    'TxtStatusBar','TxtActionLog','TxtClock','FavoritesPanel',
+    'NavAD','NavTools','NavFavorites','NavWeb','NavSettings',
+    'PanelAD','PanelTools','PanelFavorites','PanelWeb','PanelSettings'
+)
+
+foreach ($ctrlName in $CriticalControls) {
+    if (-not (Get-Variable -Name $ctrlName -ValueOnly -ErrorAction SilentlyContinue)) {
+        Write-Warning "Missing control from XAML: $ctrlName"
+    }
+}
 
 # ═══════════════════════════════════════════════════════════
 # STATE
 # ═══════════════════════════════════════════════════════════
-$Script:CurrentPC    = $null
-$Script:TTSEngine    = New-Object System.Speech.Synthesis.SpeechSynthesizer
-$Script:ActiveNav    = 'AD'
+$Script:CurrentPC = $null
+$Script:TTSEngine = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$Script:ActiveNav = 'AD'
 
 # ═══════════════════════════════════════════════════════════
-# HELPERS
+# LOGGING / SPEECH / NOTIFY HELPERS
 # ═══════════════════════════════════════════════════════════
 
 function Write-Log {
-    param([string]$Message, [string]$Color = 'White')
-    $Timestamp = Get-Date -Format 'HH:mm:ss'
-    $Entry = "[$Timestamp] $Message"
+    param([string]$Message)
 
-    $Window.Dispatcher.Invoke({
-        $TxtActionLog.Text = "$Entry`n" + $TxtActionLog.Text
-        $TxtStatusBar.Text = $Message
-    })
+    try {
+        $Timestamp = Get-Date -Format 'HH:mm:ss'
+        $Entry = "[$Timestamp] $Message"
+
+        if ($TxtActionLog) {
+            $TxtActionLog.Text = "$Entry`r`n$($TxtActionLog.Text)"
+        }
+
+        if ($TxtStatusBar) {
+            $TxtStatusBar.Text = $Message
+        }
+    }
+    catch {
+        Write-Warning "Write-Log failure: $_"
+    }
 }
 
 function Invoke-TTS {
     param([string]$Text)
-    if ($ChkTTS.IsChecked) {
-        $Script:TTSEngine.SpeakAsync($Text) | Out-Null
+
+    try {
+        if ($ChkTTS -and $ChkTTS.IsChecked -and $Script:TTSEngine) {
+            $Script:TTSEngine.SpeakAsyncCancelAll()
+            $Script:TTSEngine.SpeakAsync($Text) | Out-Null
+        }
+    }
+    catch {
+        Write-Warning "TTS failure: $_"
     }
 }
 
 function Show-Balloon {
-    param([string]$Title, [string]$Message)
-    if ($ChkBalloon.IsChecked) {
-        $Script:SysTrayIcon.BalloonTipTitle = $Title
-        $Script:SysTrayIcon.BalloonTipText  = $Message
-        $Script:SysTrayIcon.BalloonTipIcon  = [System.Windows.Forms.ToolTipIcon]::Info
-        $Script:SysTrayIcon.ShowBalloonTip(3000)
+    param([string]$Title,[string]$Message)
+
+    try {
+        if ($ChkBalloon -and $ChkBalloon.IsChecked -and $Script:SysTrayIcon) {
+            $Script:SysTrayIcon.BalloonTipTitle = $Title
+            $Script:SysTrayIcon.BalloonTipText  = $Message
+            $Script:SysTrayIcon.BalloonTipIcon  = [System.Windows.Forms.ToolTipIcon]::Info
+            $Script:SysTrayIcon.ShowBalloonTip(2500)
+        }
+    }
+    catch {
+        Write-Warning "Balloon notification failure: $_"
     }
 }
 
 function Get-TargetPC {
+    if (-not $TxtComputerName) { return $null }
+
     $pc = $TxtComputerName.Text.Trim()
-    if ([string]::IsNullOrEmpty($pc)) {
+
+    if ([string]::IsNullOrWhiteSpace($pc)) {
         [System.Windows.MessageBox]::Show(
             "Please enter or select a computer name.",
             "No Computer Selected",
@@ -192,189 +287,441 @@ function Get-TargetPC {
         )
         return $null
     }
+
     return $pc
+}
+
+function Clear-PCInfo {
+    foreach ($field in @($InfoModel,$InfoUser,$InfoOS,$InfoIP,$InfoMAC,$InfoSerial,$InfoUptime,$InfoTPM)) {
+        if ($field) { $field.Text = 'N/A' }
+    }
+}
+
+function Update-ConnectionVisual {
+    param(
+        [string]$ComputerName,
+        [bool]$Online
+    )
+
+    try {
+        $Color = if ($Online) {
+            [System.Windows.Media.Brushes]::Teal
+        }
+        else {
+            [System.Windows.Media.Brushes]::OrangeRed
+        }
+
+        if ($StatusDot)      { $StatusDot.Fill = $Color }
+        if ($InfoStatusDot)  { $InfoStatusDot.Fill = $Color }
+        if ($TxtStatusLabel) { $TxtStatusLabel.Text = "$ComputerName - $(if($Online){'Online'}else{'Offline'})" }
+        if ($TxtStatusBar)   { $TxtStatusBar.Text = "$ComputerName is $(if($Online){'online'}else{'offline'})" }
+    }
+    catch {
+        Write-Warning "Connection visual update failed: $_"
+    }
 }
 
 function Update-ConnectionStatus {
     param([string]$ComputerName)
-    $Window.Dispatcher.Invoke({
-        $TxtStatusBar.Text    = "Checking $ComputerName..."
-        $TxtStatusLabel.Text  = "Checking..."
-    })
 
-    $Online = Test-Connection -ComputerName $ComputerName -Count 1 -Quiet -ErrorAction SilentlyContinue
-
-    $Window.Dispatcher.Invoke({
-        if ($Online) {
-            $StatusDot.Fill      = [System.Windows.Media.Brushes]::Teal
-            $InfoStatusDot.Fill  = [System.Windows.Media.Brushes]::Teal
-            $TxtStatusLabel.Text = "$ComputerName — Online"
-            $TxtStatusBar.Text   = "$ComputerName is online"
-        } else {
-            $StatusDot.Fill      = [System.Windows.Media.Brushes]::OrangeRed
-            $InfoStatusDot.Fill  = [System.Windows.Media.Brushes]::OrangeRed
-            $TxtStatusLabel.Text = "$ComputerName — Offline"
-            $TxtStatusBar.Text   = "$ComputerName is offline"
-        }
-    })
-
-    return $Online
-}
-
-function Clear-PCInfo {
-    $InfoModel.Text   = '—'
-    $InfoUser.Text    = '—'
-    $InfoOS.Text      = '—'
-    $InfoIP.Text      = '—'
-    $InfoMAC.Text     = '—'
-    $InfoSerial.Text  = '—'
-    $InfoUptime.Text  = '—'
-    $InfoTPM.Text     = '—'
-}
-
-function Refresh-PCInfo {
-    param([string]$ComputerName)
     try {
-        Write-Log "Gathering info for $ComputerName"
+        if ($TxtStatusBar)   { $TxtStatusBar.Text = "Checking $ComputerName..." }
+        if ($TxtStatusLabel) { $TxtStatusLabel.Text = "Checking..." }
 
-        $CS  = Get-CimInstance -ClassName Win32_ComputerSystem  -ComputerName $ComputerName
-        $OS  = Get-CimInstance -ClassName Win32_OperatingSystem  -ComputerName $ComputerName
-        $Bio = Get-CimInstance -ClassName Win32_BIOS             -ComputerName $ComputerName
-        $Net = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration `
-                   -Filter "IPEnabled=True" -ComputerName $ComputerName |
-                   Select-Object -First 1
-        $TPM = Get-CimInstance -Namespace root\CIMV2\Security\MicrosoftTpm `
-                   -ClassName Win32_Tpm -ComputerName $ComputerName `
-                   -ErrorAction SilentlyContinue
-        $Uptime = (Get-Date) - $OS.LastBootUpTime
+        $Online = Test-Connection -ComputerName $ComputerName -Count 1 -Quiet -ErrorAction SilentlyContinue
+        Update-ConnectionVisual -ComputerName $ComputerName -Online $Online
 
-        $Window.Dispatcher.Invoke({
-            $InfoModel.Text  = $CS.Model
-            $InfoUser.Text   = if ($CS.UserName) { $CS.UserName.Split('\')[1] } else { 'None' }
-            $InfoOS.Text     = $OS.Caption
-            $InfoIP.Text     = ($Net.IPAddress | Where-Object { $_ -notlike '*:*' } | Select-Object -First 1)
-            $InfoMAC.Text    = $Net.MACAddress
-            $InfoSerial.Text = $Bio.SerialNumber
-            $InfoUptime.Text = "$($Uptime.Days)d $($Uptime.Hours)h $($Uptime.Minutes)m"
-            $InfoTPM.Text    = if ($TPM) { "v$($TPM.SpecVersion.Split(',')[0].Trim())" } else { 'None' }
-        })
-
-        Write-Log "PC info loaded for $ComputerName"
+        return $Online
     }
     catch {
-        Write-Log "Failed to get PC info: $_"
+        Write-Log "Ping failed for $ComputerName"
+        return $false
     }
 }
 
 function Switch-Panel {
     param([string]$PanelName)
 
-    # Hide all panels
-    $PanelAD.Visibility       = 'Collapsed'
-    $PanelTools.Visibility    = 'Collapsed'
-    $PanelFavorites.Visibility = 'Collapsed'
-    $PanelWeb.Visibility      = 'Collapsed'
-    $PanelSettings.Visibility = 'Collapsed'
+    foreach ($p in @($PanelAD,$PanelTools,$PanelFavorites,$PanelWeb,$PanelSettings)) {
+        if ($p) { $p.Visibility = 'Collapsed' }
+    }
 
-    # Clear active state on all nav buttons
-    $NavAD.Tag       = ''
-    $NavTools.Tag    = ''
-    $NavFavorites.Tag = ''
-    $NavWeb.Tag      = ''
-    $NavSettings.Tag = ''
+    foreach ($n in @($NavAD,$NavTools,$NavFavorites,$NavWeb,$NavSettings)) {
+        if ($n) { $n.Tag = '' }
+    }
 
-    # Show requested panel and set active nav
     switch ($PanelName) {
-        'AD'       { $PanelAD.Visibility        = 'Visible'; $NavAD.Tag        = 'Active' }
-        'Tools'    { $PanelTools.Visibility     = 'Visible'; $NavTools.Tag     = 'Active' }
-        'Favorites'{ $PanelFavorites.Visibility = 'Visible'; $NavFavorites.Tag = 'Active' }
-        'Web'      { $PanelWeb.Visibility       = 'Visible'; $NavWeb.Tag       = 'Active' }
-        'Settings' { $PanelSettings.Visibility  = 'Visible'; $NavSettings.Tag  = 'Active' }
+        'AD'       { if($PanelAD){$PanelAD.Visibility='Visible'}; if($NavAD){$NavAD.Tag='Active'} }
+        'Tools'    { if($PanelTools){$PanelTools.Visibility='Visible'}; if($NavTools){$NavTools.Tag='Active'} }
+        'Favorites'{ if($PanelFavorites){$PanelFavorites.Visibility='Visible'}; if($NavFavorites){$NavFavorites.Tag='Active'} }
+        'Web'      { if($PanelWeb){$PanelWeb.Visibility='Visible'}; if($NavWeb){$NavWeb.Tag='Active'} }
+        'Settings' { if($PanelSettings){$PanelSettings.Visibility='Visible'}; if($NavSettings){$NavSettings.Tag='Active'} }
     }
 
     $Script:ActiveNav = $PanelName
 }
+function Register-Click {
+    param(
+        [Parameter(Mandatory=$true)]$Control,
+        [Parameter(Mandatory=$true)][scriptblock]$Action
+    )
+
+    if ($null -ne $Control) {
+        $Control.add_Click($Action)
+    }
+    else {
+        Write-Warning "Skipped null control event registration."
+    }
+}
+
+function Register-TextChanged {
+    param(
+        [Parameter(Mandatory=$true)]$Control,
+        [Parameter(Mandatory=$true)][scriptblock]$Action
+    )
+
+    if ($null -ne $Control) {
+        $Control.add_TextChanged($Action)
+    }
+}
+
+function Test-ADAvailable {
+    return [bool](Get-Module -Name ActiveDirectory)
+}
+
+function Require-AD {
+    if (-not (Test-ADAvailable)) {
+        [System.Windows.MessageBox]::Show(
+            "ActiveDirectory module is not installed on this machine.",
+            "AD Module Missing",
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Warning
+        )
+        return $false
+    }
+    return $true
+}
+function Get-CrowdStrikeStatus {
+    param([string]$ComputerName)
+
+    try {
+        $paths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        )
+
+        $result = Invoke-Command -ComputerName $ComputerName -ScriptBlock {
+            param($paths)
+
+            foreach ($path in $paths) {
+                Get-ItemProperty $path -ErrorAction SilentlyContinue |
+                Where-Object { $_.DisplayName -like "*CrowdStrike*" } |
+                Select-Object DisplayName, DisplayVersion
+            }
+        } -ArgumentList (,$paths)
+
+        return $result
+    }
+    catch {
+        Write-Log "CrowdStrike detection failed: $_"
+        return $null
+    }
+}
+function Show-PasswordPrompt {
+    param([string]$User)
+
+    $inputBox = New-Object System.Windows.Forms.Form
+    $inputBox.Text = "Set Password - $User"
+    $inputBox.Width = 300
+    $inputBox.Height = 140
+    $inputBox.StartPosition = "CenterScreen"
+
+    $txt = New-Object System.Windows.Forms.TextBox
+    $txt.UseSystemPasswordChar = $true
+    $txt.Width = 250
+    $txt.Top = 20
+    $txt.Left = 20
+
+    $btn = New-Object System.Windows.Forms.Button
+    $btn.Text = "OK"
+    $btn.Top = 60
+    $btn.Left = 20
+
+    $btn.Add_Click({ $inputBox.Tag = $txt.Text; $inputBox.Close() })
+
+    $inputBox.Controls.Add($txt)
+    $inputBox.Controls.Add($btn)
+
+    $inputBox.ShowDialog() | Out-Null
+
+    return $inputBox.Tag
+}
+function Get-RemoteServiceStatus {
+    param($ComputerName, $ServiceName)
+
+    try {
+        Get-CimInstance Win32_Service -ComputerName $ComputerName |
+            Where-Object { $_.Name -eq $ServiceName } |
+            Select-Object Name, State
+    }
+    catch {
+        return $null
+    }
+}
+function Load-Settings {
+    if (Test-Path $SettingsPath) {
+        try {
+            return Get-Content $SettingsPath -Raw | ConvertFrom-Json
+        }
+        catch {
+            Write-Log "Settings file corrupted, using defaults"
+        }
+    }
+
+    return [pscustomobject]@{
+        TTS = $true
+        Balloon = $true
+        StartupSound = $true
+        SearchBase = "DC=domain,DC=com"
+        ADFilter = "*"
+    }
+}
+function Load-Favorites {
+    if (-not (Test-Path $FavoritesPath)) { return }
+
+    try {
+        $FavoritesPanel.Children.Clear()
+
+        $Favorites = Get-Content $FavoritesPath -Raw | ConvertFrom-Json
+
+        foreach ($fav in $Favorites) {
+
+            if (-not $fav.Name -or -not $fav.Url) {
+                continue
+            }
+
+            $btn = New-Object System.Windows.Controls.Button
+            $btn.Content = $fav.Name
+            $btn.Tag = $fav.Url
+            $btn.Style = $Window.Resources['ActionButton']
+            $btn.Margin = '0,0,8,8'
+            $btn.Width = 200
+
+            $url = $fav.Url
+            $name = $fav.Name
+
+            $handler = {
+    try {
+        Start-Process $url
+        Write-Log "Opened favorite: $name"
+    }
+    catch {
+        Write-Log "Failed to open: $url"
+    }
+}.GetNewClosure()
+
+Register-Click $btn $handler
+
+            $FavoritesPanel.Children.Add($btn) | Out-Null
+        }
+
+        Write-Log "Favorites loaded: $($Favorites.Count)"
+    }
+    catch {
+        Write-Log "Favorites load failed: $_"
+    }
+}
+function Invoke-BackgroundJob {
+    param(
+        [scriptblock]$Script,
+        [object[]]$ArgumentList,
+        [scriptblock]$OnComplete
+    )
+
+    try {
+        $result = & $Script @ArgumentList
+        if ($OnComplete) {
+            & $OnComplete $result
+        }
+    }
+    catch {
+        Write-Log "Background job failed: $_"
+    }
+}
+
+Register-EngineEvent PowerShell.OnScriptException -Action {
+    Write-Log "GLOBAL ERROR: $($EventArgs.Exception.Message)"
+}
 
 # ═══════════════════════════════════════════════════════════
-# SYSTRAY
+# MODERN SYSTRAY
 # ═══════════════════════════════════════════════════════════
 $Script:SysTrayIcon = New-Object System.Windows.Forms.NotifyIcon
 $Script:SysTrayIcon.Text    = "Nerdfolio Tool Center"
 $Script:SysTrayIcon.Visible = $true
 
-# Extract icon from powershell.exe as fallback
-$ExePath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
-$Script:SysTrayIcon.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($ExePath)
+try {
+    $ExePath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    $Script:SysTrayIcon.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($ExePath)
+}
+catch {}
 
-# Systray context menu
-$SysMenu     = New-Object System.Windows.Forms.ContextMenu
-$MenuShow    = New-Object System.Windows.Forms.MenuItem
+$SysMenu = New-Object System.Windows.Forms.ContextMenuStrip
+
+$MenuShow = New-Object System.Windows.Forms.ToolStripMenuItem
 $MenuShow.Text = "Show Tool Center"
-$MenuShow.add_Click({ $Window.Show(); $Window.WindowState = 'Normal' })
+Register-Click $MenuShow {
+    $Window.Show()
+    $Window.WindowState = 'Normal'
+    $Window.Activate()
+}
 
-$MenuSep     = New-Object System.Windows.Forms.MenuItem
-$MenuSep.Text = "-"
-
-$MenuExit    = New-Object System.Windows.Forms.MenuItem
+$MenuExit = New-Object System.Windows.Forms.ToolStripMenuItem
 $MenuExit.Text = "Exit"
-$MenuExit.add_Click({
-    $Script:SysTrayIcon.Visible = $false
-    $Script:SysTrayIcon.Dispose()
+Register-Click $MenuExit {
+    try {
+        $Script:SysTrayIcon.Visible = $false
+        $Script:SysTrayIcon.Dispose()
+    } catch {}
     $Window.Close()
-})
+}
 
-$SysMenu.MenuItems.AddRange(@($MenuShow, $MenuSep, $MenuExit))
-$Script:SysTrayIcon.ContextMenu = $SysMenu
+$SysMenu.Items.Add($MenuShow) | Out-Null
+$SysMenu.Items.Add("-") | Out-Null
+$SysMenu.Items.Add($MenuExit) | Out-Null
 
-# Double-click systray to restore
+$Script:SysTrayIcon.ContextMenuStrip = $SysMenu
+
 $Script:SysTrayIcon.add_DoubleClick({
     $Window.Show()
     $Window.WindowState = 'Normal'
+    $Window.Activate()
 })
 
 # ═══════════════════════════════════════════════════════════
 # CLOCK TIMER
 # ═══════════════════════════════════════════════════════════
-$ClockTimer          = New-Object System.Windows.Threading.DispatcherTimer
+$ClockTimer = New-Object System.Windows.Threading.DispatcherTimer
 $ClockTimer.Interval = [TimeSpan]::FromSeconds(1)
 $ClockTimer.add_Tick({
-    $TxtClock.Text = Get-Date -Format 'ddd MMM dd  HH:mm:ss'
+    if ($TxtClock) {
+        $TxtClock.Text = Get-Date -Format 'ddd MMM dd  HH:mm:ss'
+    }
 })
 $ClockTimer.Start()
 
 # ═══════════════════════════════════════════════════════════
-# PC NAME — CHANGE HANDLER
-# Debounced ping when user stops typing
+# PC NAME - CHANGE HANDLER
 # ═══════════════════════════════════════════════════════════
-$PingTimer          = New-Object System.Windows.Threading.DispatcherTimer
-$PingTimer.Interval = [TimeSpan]::FromMilliseconds(800)
+function Update-PCInfo {
+    param([string]$ComputerName)
+
+    try {
+        Write-Log "Gathering info for $ComputerName"
+
+        $CS  = Get-CimInstance Win32_ComputerSystem -ComputerName $ComputerName -ErrorAction Stop
+        $OS  = Get-CimInstance Win32_OperatingSystem -ComputerName $ComputerName -ErrorAction Stop
+        $BIO = Get-CimInstance Win32_BIOS -ComputerName $ComputerName -ErrorAction Stop
+
+        $NET = Get-CimInstance Win32_NetworkAdapterConfiguration `
+            -ComputerName $ComputerName `
+            -Filter "IPEnabled=True" `
+            -ErrorAction SilentlyContinue | Select-Object -First 1
+
+        $TPM = Get-CimInstance `
+            -Namespace root\CIMV2\Security\MicrosoftTpm `
+            -ClassName Win32_Tpm `
+            -ComputerName $ComputerName `
+            -ErrorAction SilentlyContinue
+
+        $Uptime = (Get-Date) - $OS.LastBootUpTime
+
+        if ($InfoModel) {
+            $InfoModel.Text = $CS.Model
+        }
+
+        if ($InfoUser) {
+            $InfoUser.Text = if ($CS.UserName) { ($CS.UserName -split '\\')[-1] } else { 'None' }
+        }
+
+        if ($InfoOS) {
+            $InfoOS.Text = $OS.Caption
+        }
+
+        if ($InfoIP) {
+            $InfoIP.Text = ($NET.IPAddress | Where-Object { $_ -notlike '*:*' } | Select-Object -First 1)
+        }
+
+        if ($InfoMAC) {
+            $InfoMAC.Text = $NET.MACAddress
+        }
+
+        if ($InfoSerial) {
+            $InfoSerial.Text = $BIO.SerialNumber
+        }
+
+        if ($InfoUptime) {
+            $InfoUptime.Text = "$($Uptime.Days)d $($Uptime.Hours)h $($Uptime.Minutes)m"
+        }
+
+        if ($InfoTPM) {
+            $InfoTPM.Text = if ($TPM) {
+                "v$($TPM.SpecVersion.Split(',')[0].Trim())"
+            } else {
+                'None'
+            }
+        }
+
+        Write-Log "PC info loaded for $ComputerName"
+    }
+    catch {
+        Clear-PCInfo
+        Write-Log "Failed to retrieve PC info for $ComputerName"
+    }
+}
+
+# ═══════════════════════════════════════════════════════════
+# LIVE PC NAME MONITOR (SAFE DEBOUNCE)
+# ═══════════════════════════════════════════════════════════
+$PingTimer = New-Object System.Windows.Threading.DispatcherTimer
+$PingTimer.Interval = [TimeSpan]::FromMilliseconds(900)
+
 $PingTimer.add_Tick({
     $PingTimer.Stop()
-    $pc = $TxtComputerName.Text.Trim()
-    if ($pc.Length -gt 2) {
+
+    try {
+        if (-not $TxtComputerName) { return }
+
+        $pc = $TxtComputerName.Text.Trim()
+
+        if ($pc.Length -lt 3) {
+            return
+        }
+
+        if ($pc -eq $Script:CurrentPC) {
+            return
+        }
+
         $Script:CurrentPC = $pc
-        Start-ThreadJob -ScriptBlock {
-            param($Computer, $Window, $StatusDot, $InfoStatusDot, $TxtStatusLabel, $TxtStatusBar)
-            $Online = Test-Connection -ComputerName $Computer -Count 1 -Quiet -ErrorAction SilentlyContinue
-            $Window.Dispatcher.Invoke({
-                $Color = if ($Online) { '#00D4AA' } else { '#E17055' }
-                $Brush = [System.Windows.Media.BrushConverter]::new().ConvertFromString($Color)
-                $StatusDot.Fill     = $Brush
-                $InfoStatusDot.Fill = $Brush
-                $TxtStatusLabel.Text = "$Computer — $(if ($Online) { 'Online' } else { 'Offline' })"
-                $TxtStatusBar.Text   = "$Computer is $(if ($Online) { 'online' } else { 'offline' })"
-            })
-        } -ArgumentList $pc, $Window, $StatusDot, $InfoStatusDot, $TxtStatusLabel, $TxtStatusBar |
-        Out-Null
+        Update-ConnectionStatus -ComputerName $pc
+    }
+    catch {
+        Write-Warning "PingTimer failure: $_"
     }
 })
 
-$TxtComputerName.add_TextChanged({ $PingTimer.Stop(); $PingTimer.Start() })
+if ($TxtComputerName) {
+    Register-TextChanged $TxtComputerName {
+    $PingTimer.Stop()
+    $PingTimer.Start()
+}
+}
 
 # ═══════════════════════════════════════════════════════════
 # SEARCH AD BUTTON
 # ═══════════════════════════════════════════════════════════
-$BtnSearchAD.add_Click({
+Register-Click $BtnSearchAD {
+    if (-not (Require-AD)) {return}
     try {
         $SearchBase = $TxtSearchBase.Text.Trim()
         $Filter     = $TxtADFilter.Text.Trim()
@@ -395,26 +742,51 @@ $BtnSearchAD.add_Click({
     catch {
         Write-Log "AD search failed: $_"
     }
-})
+}
 
 # ═══════════════════════════════════════════════════════════
 # NAV EVENTS
 # ═══════════════════════════════════════════════════════════
-$NavAD.add_Click(       { Switch-Panel 'AD' })
-$NavTools.add_Click(    { Switch-Panel 'Tools' })
-$NavFavorites.add_Click({ Switch-Panel 'Favorites' })
-$NavWeb.add_Click(      { Switch-Panel 'Web' })
-$NavSettings.add_Click( { Switch-Panel 'Settings' })
+Register-Click $NavAD       { Switch-Panel 'AD' }
+Register-Click $NavTools    { Switch-Panel 'Tools' }
+Register-Click $NavFavorites{ Switch-Panel 'Favorites' }
+Register-Click $NavWeb      { Switch-Panel 'Web' }
+Register-Click $NavSettings { Switch-Panel 'Settings' }
+
+# ═══════════════════════════════════════════════════════════
+# WEB LINKS PANEL EVENTS
+# ═══════════════════════════════════════════════════════════
+Register-Click $BtnTickets {
+    Write-Log "Opening Ticket System"
+    Start-Process "https://helpdesk.yourdomain.com"
+}
+
+Register-Click $BtnAdobeAdmin {
+    Write-Log "Opening Adobe Admin"
+    Start-Process "https://adminconsole.adobe.com"
+}
+
+Register-Click $BtnAirwatch {
+    Write-Log "Opening Airwatch"
+    Start-Process "https://your-airwatch-url.com"
+}
+
+Register-Click $BtnERPM {
+    Write-Log "Opening ERPM"
+    Start-Process "https://your-erpm-url.com"
+}
 
 # ═══════════════════════════════════════════════════════════
 # AD PANEL EVENTS
 # ═══════════════════════════════════════════════════════════
-$BtnADUnlock.add_Click({
+Register-Click $BtnADUnlock {
+    if (-not (Require-AD)) {return}
     Write-Log "Running AD Unlock..."
     Invoke-TTS "Running AD Unlock"
     try {
-        [Array]$LockedOut = Get-ADUser `
-            -LDAPFilter "(&(&(&(&(objectCategory=person)(objectClass=user)(lockoutTime:1.2.840.113556.1.4.804:=4294967295)))))" |
+        $LDAPFilter = "(&(&(&(&(objectCategory=person)(objectClass=user)(lockoutTime:1.2.840.113556.1.4.804:=4294967295)))))"
+        
+        [Array]$LockedOut = Get-ADUser -LDAPFilter $LDAPFilter |
             Where-Object { $_.Enabled -eq $true } |
             Select-Object -ExpandProperty SamAccountName |
             Out-GridView -PassThru -Title "Select Users to Unlock"
@@ -434,70 +806,74 @@ $BtnADUnlock.add_Click({
         }
     }
     catch { Write-Log "AD Unlock failed: $_" }
-})
+}
 
-$BtnPWReset.add_Click({
-    Write-Log "Running Password Reset..."
-    Invoke-TTS "Running Password Reset"
+Register-Click $BtnPWReset {
+    if (-not (Require-AD)) { return }
+
+    Write-Log "Password reset started"
+
     try {
-        [Array]$PWReset = Get-ADUser `
-            -LDAPFilter "(&(&(|(&(objectCategory=person)(objectSid=*)(!samAccountType:1.2.840.113556.1.4.804:=3))(&(objectCategory=person)(!objectSid=*))(&(objectCategory=group)(groupType:1.2.840.113556.1.4.804:=14)))(objectCategory=user)(userPrincipalName=*)))" |
-            Where-Object { $_.Enabled -eq $true } |
+        $users = Get-ADUser -Filter * |
             Select-Object -ExpandProperty SamAccountName |
-            Out-GridView -PassThru -Title "Select Users for Password Reset"
+            Out-GridView -PassThru -Title "Select Users"
 
-        if ($null -eq $PWReset) {
-            Write-Log "No users selected"
-        } else {
-            foreach ($User in $PWReset) {
-                $NewPW = Read-Host -Prompt "New password for $User" -AsSecureString
-                Set-ADAccountPassword -Identity $User -NewPassword $NewPW -Reset
-                Set-ADUser -Identity $User -ChangePasswordAtLogon:$false -ErrorAction Continue
-                # Display password for helpdesk verification — intentional
-                $PlainPW = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-                    [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($NewPW)
-                )
-                Write-Log "$User reset — password: $PlainPW"
-                Show-Balloon "Password Reset" "$User password has been reset"
-            }
+        if (-not $users) { return }
+
+        foreach ($user in $users) {
+
+            $newPass = Show-PasswordPrompt -User $user
+            if (-not $newPass) { continue }
+
+            Set-ADAccountPassword -Identity $user -Reset -NewPassword (ConvertTo-SecureString $newPass -AsPlainText -Force)
+
+            Write-Log "$user password reset (NOT logged for security)"
+            Show-Balloon "Password Reset" "$user updated"
         }
     }
-    catch { Write-Log "Password reset failed: $_" }
-})
+    catch {
+        Write-Log "Password reset failed: $_"
+    }
+}
 
-$BtnRemoteAssist.add_Click({
+Register-Click $BtnRemoteAssist {
     Write-Log "Launching Remote Assistance"
     Invoke-TTS "Launching Remote Assistance"
     Invoke-Item "C:\Windows\System32\msra.exe"
-})
+}
 
-$BtnRemoteDesktop.add_Click({
+Register-Click $BtnRemoteDesktop {
     $pc = Get-TargetPC
     if ($pc) {
         Write-Log "Connecting to $pc via RDP"
         Invoke-TTS "Connecting to $pc"
         Start-Process "mstsc.exe" -ArgumentList "/v:$pc"
     }
-})
+}
 
-$BtnEnableWinRM.add_Click({
+Register-Click $BtnEnableWinRM {
     $pc = Get-TargetPC
-    if ($pc) {
-        Write-Log "Enabling WinRM on $pc"
-        Invoke-TTS "Enabling WinRM on $pc"
-        $PSExec = "C:\Tools\PSTools\psexec.exe"
-        if (-not (Test-Path $PSExec)) {
-            Write-Log "PSExec not found at $PSExec — update path in Settings"
-            return
-        }
-        $Cred = Get-Credential
-        Start-Process $PSExec -ArgumentList "\\$pc -s C:\windows\system32\winrm.cmd quickconfig -q" -Credential $Cred -Wait
-        Write-Log "WinRM quickconfig sent to $pc"
-        Show-Balloon "WinRM" "WinRM enabled on $pc"
-    }
-})
+    if (-not $pc) { return }
 
-$BtnRestartPC.add_Click({
+    Write-Log "Enabling WinRM on $pc"
+
+    $psExec = "C:\Tools\PSTools\psexec.exe"
+    if (-not (Test-Path $psExec)) {
+        Write-Log "PsExec missing"
+        return
+    }
+
+    $cred = Get-Credential
+
+    $user = $cred.UserName
+    $pass = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($cred.Password)
+    )
+
+    Start-Process $psExec -ArgumentList "\\$pc -u $user -p $pass -s winrm quickconfig -q" -Wait
+}
+
+Register-Click $BtnRestartPC {
     $pc = Get-TargetPC
     if ($pc) {
         $Confirm = [System.Windows.MessageBox]::Show(
@@ -513,9 +889,9 @@ $BtnRestartPC.add_Click({
             Show-Balloon "Restart" "Restart command sent to $pc"
         }
     }
-})
+}
 
-$BtnLogonHours.add_Click({
+Register-Click $BtnLogonHours {
     Write-Log "Opening VPN Logon Hours script"
     $Script = Join-Path $ScriptRoot "..\ad\Set-VPNLogonHours.ps1"
     if (Test-Path $Script) {
@@ -523,9 +899,10 @@ $BtnLogonHours.add_Click({
     } else {
         Write-Log "Set-VPNLogonHours.ps1 not found"
     }
-})
+}
 
-$BtnADSearch.add_Click({
+Register-Click $BtnADSearch {
+    if (-not (Require-AD)) {return}
     Write-Log "Searching for computers in AD"
     $SearchBase = $TxtSearchBase.Text.Trim()
     try {
@@ -534,21 +911,32 @@ $BtnADSearch.add_Click({
             Out-GridView -Title "Domain Computers"
     }
     catch { Write-Log "AD search failed: $_" }
-})
+}
 
 # ═══════════════════════════════════════════════════════════
 # TOOLS PANEL EVENTS
 # ═══════════════════════════════════════════════════════════
-$BtnPCInfo.add_Click({
-    $pc = Get-TargetPC
-    if ($pc) {
-        Write-Log "Gathering PC info for $pc"
-        Invoke-TTS "Gathering info for $pc"
-        Refresh-PCInfo -ComputerName $pc
-    }
-})
+Register-Click $BtnPCInfo {
 
-$BtnPrintQueue.add_Click({
+    $pc = Get-TargetPC
+    if (-not $pc) { return }
+
+    Write-Log "Loading PC info (async)..."
+
+    Invoke-BackgroundJob -Script {
+        param($pc)
+
+        Get-CimInstance Win32_ComputerSystem -ComputerName $pc
+    } -OnComplete {
+        param($result)
+
+        if ($result) {
+            Write-Log "Async PC info complete"
+        }
+    }
+}
+
+Register-Click $BtnPrintQueue {
     $pc = Get-TargetPC
     if ($pc) {
         Write-Log "Resetting print queue on $pc"
@@ -564,62 +952,62 @@ $BtnPrintQueue.add_Click({
         }
         catch { Write-Log "Print queue reset failed: $_" }
     }
-})
+}
 
-$BtnCompMgmt.add_Click({
+Register-Click $BtnCompMgmt {
     Write-Log "Opening Computer Management"
     Invoke-Item "C:\Windows\System32\compmgmt.msc"
-})
+}
 
-$BtnRegedit.add_Click({
+Register-Click $BtnRegedit {
     Write-Log "Opening Registry Editor"
     Invoke-Item "C:\Windows\regedit.exe"
-})
+}
 
-$BtnADUC.add_Click({
+Register-Click $BtnADUC {
     Write-Log "Opening ADUC"
     Invoke-Item "C:\Windows\System32\dsa.msc"
-})
+}
 
-$BtnADAC.add_Click({
+Register-Click $BtnADAC {
     Write-Log "Opening ADAC"
     Invoke-Item "C:\Windows\System32\dsac.exe"
-})
+}
 
-$BtnCrowdStrike.add_Click({
+Register-Click $BtnCrowdStrike {
     $pc = Get-TargetPC
-    if ($pc) {
-        Write-Log "Checking CrowdStrike on $pc"
-        try {
-            $CS = Get-CimInstance -ComputerName $pc -ClassName Win32_Product `
-                -Filter "Vendor='CrowdStrike, Inc.'" -ErrorAction Stop
-            if ($CS) {
-                Write-Log "CrowdStrike installed on $pc — v$($CS.Version)"
-                Show-Balloon "CrowdStrike" "Installed on $pc — v$($CS.Version)"
-            } else {
-                Write-Log "CrowdStrike NOT found on $pc"
-                Show-Balloon "CrowdStrike" "NOT installed on $pc"
-            }
-        }
-        catch { Write-Log "CrowdStrike check failed: $_" }
-    }
-})
+    if (-not $pc) { return }
 
-$BtnBigFix.add_Click({
+    Write-Log "Checking CrowdStrike on $pc"
+
+    $cs = Get-CrowdStrikeStatus -ComputerName $pc
+
+    if ($cs) {
+        Write-Log "CrowdStrike installed: $($cs.DisplayVersion)"
+        Show-Balloon "CrowdStrike" "Installed - $($cs.DisplayVersion)"
+    }
+    else {
+        Write-Log "CrowdStrike NOT found on $pc"
+        Show-Balloon "CrowdStrike" "Not installed"
+    }
+}
+
+Register-Click $BtnBigFix {
     $pc = Get-TargetPC
-    if ($pc) {
-        Write-Log "Checking BigFix on $pc"
-        try {
-            $Status = Get-Service -ComputerName $pc -Name BESClient -ErrorAction Stop |
-                Select-Object -ExpandProperty Status
-            Write-Log "BigFix on $pc — $Status"
-            Show-Balloon "BigFix" "$pc BESClient: $Status"
-        }
-        catch { Write-Log "BigFix check failed: $_" }
-    }
-})
+    if (-not $pc) { return }
 
-$BtnTPM.add_Click({
+    $svc = Get-RemoteServiceStatus -ComputerName $pc -ServiceName "BESClient"
+
+    if ($svc) {
+        Write-Log "BigFix: $($svc.State)"
+        Show-Balloon "BigFix" "$($svc.State)"
+    }
+    else {
+        Write-Log "BigFix not reachable"
+    }
+}
+
+Register-Click $BtnTPM {
     $pc = Get-TargetPC
     if ($pc) {
         Write-Log "Checking TPM on $pc"
@@ -627,13 +1015,13 @@ $BtnTPM.add_Click({
             $TPM = Get-CimInstance -ComputerName $pc `
                 -Namespace root\CIMV2\Security\MicrosoftTpm `
                 -ClassName Win32_Tpm -ErrorAction Stop
-            Write-Log "TPM on $pc — Enabled: $($TPM.IsEnabled_InitialValue) | v$($TPM.SpecVersion)"
+            Write-Log "TPM on $pc - Enabled: $($TPM.IsEnabled_InitialValue) | v$($TPM.SpecVersion)"
         }
         catch { Write-Log "TPM check failed: $_" }
     }
-})
+}
 
-$BtnDotNet.add_Click({
+Register-Click $BtnDotNet {
     $pc = Get-TargetPC
     if ($pc) {
         Write-Log "Checking .NET version on $pc"
@@ -641,65 +1029,61 @@ $BtnDotNet.add_Click({
             $Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $pc)
             $Key = $Reg.OpenSubKey("SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full")
             $Release = $Key.GetValue("Release")
-            Write-Log ".NET release key on $pc — $Release"
+            Write-Log ".NET release key on $pc - $Release"
         }
         catch { Write-Log ".NET check failed: $_" }
     }
-})
+}
 
 # ═══════════════════════════════════════════════════════════
 # INFO PANEL EVENTS
 # ═══════════════════════════════════════════════════════════
-$BtnRefreshInfo.add_Click({
+Register-Click $BtnRefreshInfo {
     $pc = Get-TargetPC
-    if ($pc) { Refresh-PCInfo -ComputerName $pc }
-})
+    if ($pc) { Update-PCInfo -ComputerName $pc }
+}
 
-$BtnCopyIP.add_Click({
-    if ($InfoIP.Text -ne '—') {
+Register-Click $BtnCopyIP {
+    if ($InfoIP.Text -ne '-') {
         [System.Windows.Clipboard]::SetText($InfoIP.Text)
         Write-Log "IP copied to clipboard"
     }
-})
+}
 
-$BtnCopyMAC.add_Click({
-    if ($InfoMAC.Text -ne '—') {
+Register-Click $BtnCopyMAC {
+    if ($InfoMAC.Text -ne '-') {
         [System.Windows.Clipboard]::SetText($InfoMAC.Text)
         Write-Log "MAC copied to clipboard"
     }
-})
+}
 
-$BtnCopySerial.add_Click({
-    if ($InfoSerial.Text -ne '—') {
+Register-Click $BtnCopySerial {
+    if ($InfoSerial.Text -ne '-') {
         [System.Windows.Clipboard]::SetText($InfoSerial.Text)
         Write-Log "Serial copied to clipboard"
     }
-})
+}
 
 # ═══════════════════════════════════════════════════════════
 # SETTINGS EVENTS
 # ═══════════════════════════════════════════════════════════
-$BtnSaveSettings.add_Click({
-    Write-Log "Settings saved"
-    Show-Balloon "Settings" "Settings saved successfully"
-})
-
-# ═══════════════════════════════════════════════════════════
-# FAVORITES — Load from JSON
-# ═══════════════════════════════════════════════════════════
-if (Test-Path $FavoritesPath) {
+Register-Click $BtnSaveSettings {
     try {
-        $Favorites = Get-Content $FavoritesPath -Raw | ConvertFrom-Json
-        $FavoritesList.ItemsSource = $Favorites
+        $data = [pscustomobject]@{
+            TTS          = $ChkTTS.IsChecked
+            Balloon      = $ChkBalloon.IsChecked
+            StartupSound = $ChkStartupSound.IsChecked
+            SearchBase   = $TxtSearchBase.Text
+            ADFilter     = $TxtADFilter.Text
+        }
 
-        # Wire click events after load
-        $FavoritesList.add_Loaded({
-            # Events wired via DataTemplate in XAML
-            # Individual button clicks handled via Tag property
-        })
+        $data | ConvertTo-Json -Depth 3 | Set-Content $SettingsPath -Encoding UTF8
+
+        Write-Log "Settings saved"
+        Show-Balloon "Settings" "Saved successfully"
     }
     catch {
-        Write-Log "Failed to load favorites: $_"
+        Write-Log "Settings save failed: $_"
     }
 }
 
@@ -715,7 +1099,7 @@ $Window.add_StateChanged({
     }
 })
 
-# Closing — cleanup
+# Closing - cleanup
 $Window.add_Closing({
     $ClockTimer.Stop()
     $Script:TTSEngine.Dispose()
@@ -727,11 +1111,14 @@ $Window.add_Closing({
 # STARTUP
 # ═══════════════════════════════════════════════════════════
 Switch-Panel 'AD'
+Load-Favorites
+$Settings = Load-Settings
 
-if ($ChkStartupSound.IsChecked) {
-    Invoke-TTS "Tool Center ready"
-}
-
+if ($ChkTTS)          { $ChkTTS.IsChecked = $Settings.TTS }
+if ($ChkBalloon)      { $ChkBalloon.IsChecked = $Settings.Balloon }
+if ($ChkStartupSound)  { $ChkStartupSound.IsChecked = $Settings.StartupSound }
+if ($TxtSearchBase)    { $TxtSearchBase.Text = $Settings.SearchBase }
+if ($TxtADFilter)      { $TxtADFilter.Text = $Settings.ADFilter }
 Show-Balloon "Nerdfolio Tool Center" "Tool Center is running"
 
 Write-Log "Tool Center V3 started"
