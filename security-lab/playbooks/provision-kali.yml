@@ -1,0 +1,41 @@
+---
+- name: Provision Kali Attack VM
+  hosts: windows
+  gather_facts: false
+  become: false
+
+  vars:
+    vm_name: "nf-kali"
+    vm_ram: 4294967296      # 4GB
+    vm_disk_size: 85899345920  # 80GB
+    vm_cpu: 4
+    vm_switch: "vSwitch-Isolated"
+    vm_vhd_dir: "D:\\Hyper-V\\Virtual Hard Disks"
+
+  tasks:
+    - name: Check if Kali VM exists
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if ($vm) { $Ansible.Result = "exists" } else { $Ansible.Result = "absent" }
+      register: vm_check
+      changed_when: false
+
+    - name: Create Kali VM
+      ansible.windows.win_powershell:
+        script: |
+          $vhdPath = "{{ vm_vhd_dir }}\{{ vm_name }}.vhdx"
+          New-VM -Name "{{ vm_name }}" `
+            -Generation 2 `
+            -MemoryStartupBytes {{ vm_ram }} `
+            -NewVHDPath $vhdPath `
+            -NewVHDSizeBytes {{ vm_disk_size }} `
+            -SwitchName "{{ vm_switch }}"
+          Set-VMMemory -VMName "{{ vm_name }}" -DynamicMemoryEnabled $false
+          Set-VMProcessor -VMName "{{ vm_name }}" -Count {{ vm_cpu }}
+          Set-VMFirmware -VMName "{{ vm_name }}" -SecureBootTemplate "MicrosoftUEFICertificateAuthority"
+      when: vm_check.result == "absent"
+
+    - name: Report
+      debug:
+        msg: "{{ vm_name }} {{ 'already exists' if vm_check.result == 'exists' else 'provisioned on vSwitch-Isolated' }}"

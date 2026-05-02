@@ -216,3 +216,26 @@ Some services are accessed directly by IP rather than hostname:
 | Service | URL |
 |---|---|
 | Kasm | https://192.168.100.40 |
+
+## Security Lab
+
+### Provision Kali VM
+```bash
+ansible-playbook -i inventory/hosts.ini \
+  ../security-lab/playbooks/provision-kali.yml
+```
+
+### Provision Vulnerable VM
+```bash
+ansible-playbook -i inventory/hosts.ini \
+  ../security-lab/playbooks/provision-vulnvm.yml \
+  -e "vm_name=TARGET-NAME" \
+  -e "vm_vhd_path=D:\\Hyper-V\\Virtual Hard Disks\\TARGET-NAME.vhdx"
+```
+
+### Destroy Vulnerable VM
+```bash
+ansible-playbook -i inventory/hosts.ini \
+  ../security-lab/playbooks/destroy-vulnvm.yml \
+  -e "vm_name=TARGET-NAME"
+```

@@ -1,0 +1,58 @@
+---
+- name: Destroy Vulnerable VM
+  hosts: windows
+  gather_facts: false
+  become: false
+
+  vars:
+    vm_name: ""
+    remove_vhd: true
+
+  tasks:
+    - name: Validate input
+      fail:
+        msg: "vm_name is required"
+      when: vm_name == ""
+
+    - name: Get VM VHD path before deletion
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if ($vm) {
+            $vhd = Get-VMHardDiskDrive -VMName "{{ vm_name }}" | Select-Object -First 1
+            $Ansible.Result = $vhd.Path
+          } else {
+            $Ansible.Result = "notfound"
+          }
+      register: vhd_path
+      changed_when: false
+
+    - name: Fail if VM not found
+      fail:
+        msg: "VM {{ vm_name }} not found"
+      when: vhd_path.result == "notfound"
+
+    - name: Stop VM
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if ($vm -and $vm.State -ne 'Off') {
+            Stop-VM -Name "{{ vm_name }}" -Force
+          }
+
+    - name: Remove VM
+      ansible.windows.win_powershell:
+        script: |
+          Remove-VM -Name "{{ vm_name }}" -Force
+
+    - name: Remove VHD
+      ansible.windows.win_powershell:
+        script: |
+          if (Test-Path "{{ vhd_path.result }}") {
+            Remove-Item "{{ vhd_path.result }}" -Force
+          }
+      when: remove_vhd | bool
+
+    - name: Report
+      debug:
+        msg: "{{ vm_name }} destroyed{{ ' and VHD removed' if remove_vhd else '' }}"

@@ -1,0 +1,42 @@
+---
+- name: Provision Vulnerable VM from VHDX
+  hosts: windows
+  gather_facts: false
+  become: false
+
+  vars:
+    vm_name: ""
+    vm_ram: 1073741824       # 1GB default
+    vm_cpu: 2
+    vm_switch: "vSwitch-Isolated"
+    vm_vhd_path: ""          # Full path to converted VHDX
+
+  tasks:
+    - name: Validate inputs
+      fail:
+        msg: "vm_name and vm_vhd_path are required"
+      when: vm_name == "" or vm_vhd_path == ""
+
+    - name: Check if VM exists
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if ($vm) { $Ansible.Result = "exists" } else { $Ansible.Result = "absent" }
+      register: vm_check
+      changed_when: false
+
+    - name: Create VM from existing VHDX
+      ansible.windows.win_powershell:
+        script: |
+          New-VM -Name "{{ vm_name }}" `
+            -Generation 1 `
+            -MemoryStartupBytes {{ vm_ram }} `
+            -VHDPath "{{ vm_vhd_path }}" `
+            -SwitchName "{{ vm_switch }}"
+          Set-VMMemory -VMName "{{ vm_name }}" -DynamicMemoryEnabled $false
+          Set-VMProcessor -VMName "{{ vm_name }}" -Count {{ vm_cpu }}
+      when: vm_check.result == "absent"
+
+    - name: Report
+      debug:
+        msg: "{{ vm_name }} {{ 'already exists' if vm_check.result == 'exists' else 'provisioned on vSwitch-Isolated' }}"
