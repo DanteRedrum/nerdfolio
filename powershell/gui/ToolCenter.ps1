@@ -389,7 +389,7 @@ function Test-ADAvailable {
     return [bool](Get-Module -Name ActiveDirectory)
 }
 
-function Require-AD {
+function Assert-AD {
     if (-not (Test-ADAvailable)) {
         [System.Windows.MessageBox]::Show(
             "ActiveDirectory module is not installed on this machine.",
@@ -468,7 +468,7 @@ function Get-RemoteServiceStatus {
         return $null
     }
 }
-function Load-Settings {
+function Get-Settings {
     if (Test-Path $SettingsPath) {
         try {
             return Get-Content $SettingsPath -Raw | ConvertFrom-Json
@@ -486,7 +486,7 @@ function Load-Settings {
         ADFilter = "*"
     }
 }
-function Load-Favorites {
+function Get-Favorites {
     if (-not (Test-Path $FavoritesPath)) { return }
 
     try {
@@ -721,7 +721,7 @@ if ($TxtComputerName) {
 # SEARCH AD BUTTON
 # ═══════════════════════════════════════════════════════════
 Register-Click $BtnSearchAD {
-    if (-not (Require-AD)) {return}
+    if (-not (Assert-AD)) {return}
     try {
         $SearchBase = $TxtSearchBase.Text.Trim()
         $Filter     = $TxtADFilter.Text.Trim()
@@ -780,7 +780,7 @@ Register-Click $BtnERPM {
 # AD PANEL EVENTS
 # ═══════════════════════════════════════════════════════════
 Register-Click $BtnADUnlock {
-    if (-not (Require-AD)) {return}
+    if (-not (Assert-AD)) {return}
     Write-Log "Running AD Unlock..."
     Invoke-TTS "Running AD Unlock"
     try {
@@ -809,7 +809,7 @@ Register-Click $BtnADUnlock {
 }
 
 Register-Click $BtnPWReset {
-    if (-not (Require-AD)) { return }
+    if (-not (Assert-AD)) { return }
 
     Write-Log "Password reset started"
 
@@ -902,7 +902,7 @@ Register-Click $BtnLogonHours {
 }
 
 Register-Click $BtnADSearch {
-    if (-not (Require-AD)) {return}
+    if (-not (Assert-AD)) {return}
     Write-Log "Searching for computers in AD"
     $SearchBase = $TxtSearchBase.Text.Trim()
     try {
@@ -1111,8 +1111,8 @@ $Window.add_Closing({
 # STARTUP
 # ═══════════════════════════════════════════════════════════
 Switch-Panel 'AD'
-Load-Favorites
-$Settings = Load-Settings
+Get-Favorites
+$Settings = Get-Settings
 
 if ($ChkTTS)          { $ChkTTS.IsChecked = $Settings.TTS }
 if ($ChkBalloon)      { $ChkBalloon.IsChecked = $Settings.Balloon }
