@@ -6,6 +6,24 @@ All commands run from `~/nerdfolio/ansible/`
 
 ## VM Lifecycle
 
+### Move VM NIC to different switch
+```bash
+# Move to External (internet access)
+ansible-playbook -i inventory/hosts.ini playbooks/set-vm-switch.yml \
+  -e "vm_name=nf-kali" \
+  -e "switch_name=vSwitch-External"
+
+# Move back to Isolated (lab only)
+ansible-playbook -i inventory/hosts.ini playbooks/set-vm-switch.yml \
+  -e "vm_name=nf-kali" \
+  -e "switch_name=vSwitch-Isolated"
+
+# Move to Internal
+ansible-playbook -i inventory/hosts.ini playbooks/set-vm-switch.yml \
+  -e "vm_name=nf-kali" \
+  -e "switch_name=vSwitch-Internal"
+```
+
 ### Provision a new VM
 ```bash
 ansible-playbook -i inventory/hosts.ini playbooks/hyperv-provision-vm.yml \

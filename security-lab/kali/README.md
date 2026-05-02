@@ -5,6 +5,35 @@
 Full Kali Linux installation on vSwitch-Isolated.
 Used for attacking vulnerable VMs in the lab.
 
+## Installed
+
+| Detail | Value |
+|---|---|
+| Version | Kali 2026.1 |
+| IP | 10.10.10.10 |
+| Username | daniel |
+| Switch | vSwitch-Isolated |
+| Secure Boot | Disabled |
+
+## Notes
+
+Secure Boot must be disabled for Kali — bootloader is not signed
+with a Microsoft-trusted key. Acceptable for an isolated lab VM.
+
+To temporarily connect to internet for updates:
+```bash
+# Move to external
+ansible-playbook -i inventory/hosts.ini playbooks/set-vm-switch.yml \
+  -e "vm_name=nf-kali" -e "switch_name=vSwitch-External"
+
+# Update
+sudo apt update && sudo apt upgrade -y
+
+# Move back
+ansible-playbook -i inventory/hosts.ini playbooks/set-vm-switch.yml \
+  -e "vm_name=nf-kali" -e "switch_name=vSwitch-Isolated"
+```
+
 ### Provisioning
 
 ```bash

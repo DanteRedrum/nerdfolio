@@ -33,7 +33,7 @@
             -SwitchName "{{ vm_switch }}"
           Set-VMMemory -VMName "{{ vm_name }}" -DynamicMemoryEnabled $false
           Set-VMProcessor -VMName "{{ vm_name }}" -Count {{ vm_cpu }}
-          Set-VMFirmware -VMName "{{ vm_name }}" -SecureBootTemplate "MicrosoftUEFICertificateAuthority"
+          Set-VMFirmware -VMName "{{ vm_name }}" -EnableSecureBoot Off
       when: vm_check.result == "absent"
 
     - name: Report

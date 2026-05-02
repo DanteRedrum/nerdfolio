@@ -1,0 +1,40 @@
+---
+- name: Change VM Network Switch
+  hosts: windows
+  gather_facts: false
+  become: false
+
+  vars:
+    vm_name: ""
+    switch_name: ""
+
+  tasks:
+    - name: Validate inputs
+      fail:
+        msg: "vm_name and switch_name are required"
+      when: vm_name == "" or switch_name == ""
+
+    - name: Check VM exists
+      ansible.windows.win_powershell:
+        script: |
+          $vm = Get-VM -Name "{{ vm_name }}" -ErrorAction SilentlyContinue
+          if ($vm) { $Ansible.Result = "exists" } else { $Ansible.Result = "notfound" }
+      register: vm_check
+      changed_when: false
+
+    - name: Fail if VM not found
+      fail:
+        msg: "VM {{ vm_name }} not found"
+      when: vm_check.result == "notfound"
+
+    - name: Switch NIC
+      ansible.windows.win_powershell:
+        script: |
+          Get-VMNetworkAdapter -VMName "{{ vm_name }}" |
+            Connect-VMNetworkAdapter -SwitchName "{{ vm_switch }}"
+      vars:
+        vm_switch: "{{ switch_name }}"
+
+    - name: Report
+      debug:
+        msg: "{{ vm_name }} NIC moved to {{ switch_name }}"
