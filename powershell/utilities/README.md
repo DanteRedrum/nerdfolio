@@ -2,6 +2,24 @@
 
 Miscellaneous utility scripts and fixes that don't fit other categories.
 
+## Scripts
+
+### Invoke-Popup.ps1
+Displays a customizable popup message box via WScript.Shell.
+Supports all button group and icon combinations with named parameters.
+
+```powershell
+# Simple notification
+Invoke-Popup -Message "Script complete" -Title "Done"
+
+# Yes/No with timeout
+$r = Invoke-Popup -Message "Restart now?" -Title "Confirm" `
+     -Buttons YesNo -Icon Question -Time 30
+if ($r -eq 6) { Restart-Computer }
+```
+
+Return values: -1=Timeout, 1=OK, 2=Cancel, 3=Abort, 4=Retry, 5=Ignore, 6=Yes, 7=No
+
 ## FixPowerShellSpacesInPath.reg
 
 Registry fix for two issues:

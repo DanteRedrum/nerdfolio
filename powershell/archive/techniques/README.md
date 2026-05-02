@@ -53,3 +53,63 @@ The New-WPFMessageBox function demonstrates:
 - DropShadowEffect animations
 - MediaElement integration
 - DispatcherTimer for timeouts
+
+## Remote User Message (Balloon_Message.ps1 + Cant_push_remote.ps1)
+**Technique: Pushing messages to remote user desktops**
+
+Two scripts that document the problem-solving process around sending
+a popup message to a user's desktop and getting a button response.
+
+The dead end: WScript.Shell Popup runs on the local machine only.
+Passing the result via Invoke-Command doesn't push the popup to
+the remote user's session.
+
+The working technique buried in the comments:
+    Invoke-WmiMethod -Path Win32_Process -Name Create
+        -ArgumentList "msg * $message" -ComputerName $computer
+
+`msg *` sends a message to all sessions on the remote machine.
+This requires the Messenger service or msg.exe to be available.
+
+The NotifyIcon balloon approach (also in Balloon_Message.ps1) only
+works locally — you can't push a NotifyIcon to a remote session.
+
+These scripts document the exploration honestly. The limitation
+they ran into is real and worth understanding.
+
+## Start of Day Automation (Startofday.ps1)
+**Technique: Credential-based elevated process launch**
+
+Personal start-of-day script that opens Chrome, Outlook, and
+launches dsac.exe (AD Administrative Center) with elevated credentials
+without maintaining a persistent elevated session.
+
+Key technique:
+    Start-Process "cmd.exe" -Credential $AdminCred -ArgumentList "/c dsac.exe"
+
+This pattern — Get-Credential once, pass to Start-Process — is how
+you launch specific tools with alternate credentials without running
+your entire session elevated. The cmd.exe wrapper is needed because
+dsac.exe can't be launched directly with -Credential.
+
+The Get-Process | Stop-Process cleanup removes the cmd.exe window
+after dsac.exe launches as its own process.
+
+## Form All Events (Form_All_Events.ps1)
+**Reference: Complete WinForms event listing**
+
+Not a runnable script — a reference document listing every available
+event for every WinForms control type used in the original Tool Center.
+
+Control events documented:
+- Button, Form, PictureBox, TextBox, Label
+- CheckBox, ComboBox, ListView, RadioButton
+- Panel, GroupBox, MaskedTextBox, ProgressBar, DataGridView
+
+Use this when building WinForms GUIs and you need to know what events
+are available on a given control. The pattern is:
+    $Control.Add_EventName({ ... })
+
+This predates the WPF rewrite. WPF uses a different event model
+but the exploration documented here is part of the learning path
+that led to Tool Center V3.
