@@ -1,0 +1,32 @@
+---
+- name: Deploy FiveM MariaDB
+  hosts: nf-fivem-ubuntu
+  become: true
+
+  tasks:
+    - name: Create MariaDB directory
+      file:
+        path: /opt/fivem/docker
+        state: directory
+        mode: '0755'
+
+    - name: Copy compose file
+      copy:
+        src: ../../fivem/docker/docker-compose.yml
+        dest: /opt/fivem/docker/docker-compose.yml
+        mode: '0644'
+
+    - name: Copy env file
+      copy:
+        src: ../../fivem/docker/.env
+        dest: /opt/fivem/docker/.env
+        mode: '0600'
+
+    - name: Deploy MariaDB
+      community.docker.docker_compose_v2:
+        project_src: /opt/fivem/docker
+        state: present
+
+    - name: Report
+      debug:
+        msg: "MariaDB running — fivem database ready on port 3306"

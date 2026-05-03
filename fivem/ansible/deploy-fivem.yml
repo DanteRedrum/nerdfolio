@@ -1,0 +1,99 @@
+---
+- name: Deploy FiveM Server
+  hosts: nf-fivem-ubuntu
+  become: true
+
+  vars:
+    fivem_user: daniel
+    fivem_dir: /opt/fivem
+    server_data_dir: /opt/fivem/server-data
+    txadmin_port: 40120
+    fivem_port: 30120
+    fivem_artifact: "25770-8ddccd4e4dfd6a760ce18651656463f961cc4761"
+    # Update artifact version at: https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/
+
+  tasks:
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - xz-utils
+          - libssl-dev
+        state: present
+        update_cache: yes
+
+    - name: Create FiveM directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ fivem_user }}"
+        group: "{{ fivem_user }}"
+        mode: '0755'
+      loop:
+        - "{{ fivem_dir }}"
+        - "{{ server_data_dir }}"
+        - "{{ server_data_dir }}/resources"
+
+    - name: Download FiveM artifact
+      get_url:
+        url: "https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/25770-8ddccd4e4dfd6a760ce18651656463f961cc4761/fx.tar.xz"
+        dest: "{{ fivem_dir }}/fx.tar.xz"
+        owner: "{{ fivem_user }}"
+        mode: '0644'
+        timeout: 300
+
+    - name: Extract FiveM artifact
+      unarchive:
+        src: "{{ fivem_dir }}/fx.tar.xz"
+        dest: "{{ fivem_dir }}"
+        remote_src: yes
+        owner: "{{ fivem_user }}"
+        creates: "{{ fivem_dir }}/run.sh"
+
+    - name: Allow FiveM through UFW
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+      loop:
+        - { port: "{{ fivem_port }}", proto: tcp }
+        - { port: "{{ fivem_port }}", proto: udp }
+        - { port: "{{ txadmin_port }}", proto: tcp }
+
+    - name: Create FiveM systemd service
+      copy:
+        dest: /etc/systemd/system/fivem.service
+        content: |
+          [Unit]
+          Description=FiveM Server
+          After=network.target docker.service
+          Requires=docker.service
+
+          [Service]
+          Type=simple
+          User={{ fivem_user }}
+          WorkingDirectory={{ fivem_dir }}
+          Environment="TXHOST_DATA_PATH={{ server_data_dir }}"
+          Environment="TXHOST_TXA_PORT={{ txadmin_port }}"
+          ExecStart={{ fivem_dir }}/run.sh
+          Restart=on-failure
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable FiveM service
+      systemd:
+        name: fivem
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Report
+      debug:
+        msg:
+          - "FiveM installed at {{ fivem_dir }}"
+          - "txAdmin panel: http://192.168.100.60:{{ txadmin_port }}"
+          - "Start server: sudo systemctl start fivem"
+          - "View logs: sudo journalctl -u fivem -f"
