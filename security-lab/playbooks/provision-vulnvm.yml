@@ -6,16 +6,16 @@
 
   vars:
     vm_name: ""
-    vm_ram: 1073741824       # 1GB default
+    vm_ram: 1073741824
     vm_cpu: 2
     vm_switch: "vSwitch-Isolated"
-    vm_vhd_path: ""          # Full path to converted VHDX
+    vm_vhd_dir: "D:\\Hyper-V\\Virtual Hard Disks"
 
   tasks:
     - name: Validate inputs
       fail:
-        msg: "vm_name and vm_vhd_path are required"
-      when: vm_name == "" or vm_vhd_path == ""
+        msg: "vm_name is required"
+      when: vm_name == ""
 
     - name: Check if VM exists
       ansible.windows.win_powershell:
@@ -28,10 +28,11 @@
     - name: Create VM from existing VHDX
       ansible.windows.win_powershell:
         script: |
+          $vhdPath = "{{ vm_vhd_dir }}\{{ vm_name }}.vhdx"
           New-VM -Name "{{ vm_name }}" `
             -Generation 1 `
             -MemoryStartupBytes {{ vm_ram }} `
-            -VHDPath "{{ vm_vhd_path }}" `
+            -VHDPath $vhdPath `
             -SwitchName "{{ vm_switch }}"
           Set-VMMemory -VMName "{{ vm_name }}" -DynamicMemoryEnabled $false
           Set-VMProcessor -VMName "{{ vm_name }}" -Count {{ vm_cpu }}
