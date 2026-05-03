@@ -56,3 +56,18 @@ ansible-playbook -i inventory/hosts.ini \
 - Secure Boot must be disabled for Gen 1 VMs
 - All VMs connect to vSwitch-Isolated only
 - Never attach a vulnerable VM to vSwitch-External or vSwitch-Internal
+
+## Known Issues
+
+### DHCP on vSwitch-Isolated
+Older VulnHub VMs (particularly Kioptrix Level 1) may not obtain
+a DHCP lease from dnsmasq on the isolated network. Possible causes:
+
+- Legacy network adapter type incompatible with Hyper-V Gen 1
+- Old DHCP client not compatible with dnsmasq
+
+**Workarounds to investigate:**
+- Change VM network adapter type in Hyper-V settings
+- Boot Kioptrix and manually check what network adapter is configured
+- Try assigning a static IP via the VM console
+- Use nmap ARP scan to find self-assigned APIPA addresses
