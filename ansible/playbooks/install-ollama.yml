@@ -1,0 +1,46 @@
+---
+- name: Install Ollama
+  hosts: nf-ai-ubuntu
+  become: true
+
+  vars:
+    ollama_model: "mistral:7b"
+
+  tasks:
+    - name: Download Ollama installer
+      get_url:
+        url: https://ollama.com/install.sh
+        dest: /tmp/ollama-install.sh
+        mode: '0755'
+
+    - name: Run Ollama installer
+      shell: /tmp/ollama-install.sh
+      args:
+        creates: /usr/local/bin/ollama
+
+    - name: Enable and start Ollama service
+      systemd:
+        name: ollama
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Allow Ollama port through UFW
+      ufw:
+        rule: allow
+        port: 11434
+        proto: tcp
+
+    - name: Pull default model
+      shell: ollama pull {{ ollama_model }}
+      environment:
+        HOME: /home/daniel
+      register: model_pull
+      changed_when: false
+
+    - name: Report
+      debug:
+        msg:
+          - "Ollama installed and running"
+          - "Model {{ ollama_model }} pulled"
+          - "API available at http://192.168.100.30:11434"
