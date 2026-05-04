@@ -3,3 +3,4 @@ ansible/inventory/group_vars/windows/vault.yml
 docker/env/*.env
 fivem/docker/.env
 fivem/server-data/
+ansible/inventory/group_vars/lab/vault.yml
