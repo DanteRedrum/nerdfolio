@@ -1,0 +1,107 @@
+---
+- name: Configure NPM Proxy Hosts
+  hosts: nf-docker-ubuntu
+  become: false
+  gather_facts: false
+
+  vars:
+    npm_url: "http://localhost:81"
+    proxy_hosts:
+      - domain: "portainer.nerdfolio"
+        forward_host: "portainer"
+        forward_port: 9000
+        websocket: false
+      - domain: "pihole.nerdfolio"
+        forward_host: "pihole"
+        forward_port: 80
+        websocket: false
+      - domain: "uptime.nerdfolio"
+        forward_host: "uptime-kuma"
+        forward_port: 3001
+        websocket: true
+      - domain: "vault.nerdfolio"
+        forward_host: "vaultwarden"
+        forward_port: 80
+        websocket: false
+      - domain: "git.nerdfolio"
+        forward_host: "gitea"
+        forward_port: 3000
+        websocket: false
+      - domain: "code.nerdfolio"
+        forward_host: "code-server"
+        forward_port: 8443
+        websocket: false
+      - domain: "dash.nerdfolio"
+        forward_host: "dashy"
+        forward_port: 8080
+        websocket: false
+      - domain: "pdf.nerdfolio"
+        forward_host: "stirling-pdf"
+        forward_port: 8080
+        websocket: false
+      - domain: "ai.nerdfolio"
+        forward_host: "192.168.100.30"
+        forward_port: 3002
+        websocket: true
+
+  tasks:
+    - name: Get NPM auth token
+      uri:
+        url: "{{ npm_url }}/api/tokens"
+        method: POST
+        body_format: json
+        body:
+          identity: "{{ npm_email }}"
+          secret: "{{ npm_password }}"
+        status_code: 200
+      register: npm_auth
+
+    - name: Set auth token
+      set_fact:
+        npm_token: "{{ npm_auth.json.token }}"
+
+    - name: Get existing proxy hosts
+      uri:
+        url: "{{ npm_url }}/api/nginx/proxy-hosts"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ npm_token }}"
+        status_code: 200
+      register: existing_hosts
+
+    - name: Build list of existing domains
+      set_fact:
+        existing_domains: "{{ existing_hosts.json | map(attribute='domain_names') | flatten }}"
+
+    - name: Create proxy hosts that don't exist
+      uri:
+        url: "{{ npm_url }}/api/nginx/proxy-hosts"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ npm_token }}"
+        body_format: json
+        body:
+          domain_names:
+            - "{{ item.domain }}"
+          forward_scheme: "http"
+          forward_host: "{{ item.forward_host }}"
+          forward_port: "{{ item.forward_port }}"
+          ssl_forced: true
+          certificate_id: 0
+          allow_websocket_upgrade: "{{ item.websocket }}"
+          caching_enabled: false
+          block_exploits: false
+          http2_support: false
+          hsts_enabled: false
+          hsts_subdomains: false
+          enabled: true
+          locations: []
+          advanced_config: ""
+        status_code: 201
+      loop: "{{ proxy_hosts }}"
+      when: item.domain not in existing_domains
+      register: created_hosts
+
+    - name: Report
+      debug:
+        msg: "Proxy hosts configured — {{ proxy_hosts | length }} total, {{ created_hosts.results | selectattr('skipped', 'undefined') | list | length }} created"
