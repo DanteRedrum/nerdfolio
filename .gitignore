@@ -4,3 +4,4 @@ docker/env/*.env
 fivem/docker/.env
 fivem/server-data/
 ansible/inventory/group_vars/lab/vault.yml
+docker/itflow/.env
