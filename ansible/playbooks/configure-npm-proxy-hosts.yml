@@ -43,7 +43,11 @@
         forward_host: "192.168.100.30"
         forward_port: 3002
         websocket: true
-
+      - domain: "itflow.nerdfolio"
+        forward_host: "itflow"
+        forward_port: 80
+        websocket: false
+    
   tasks:
     - name: Get NPM auth token
       uri:
