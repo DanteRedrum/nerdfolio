@@ -515,6 +515,7 @@ Run through the complete service checklist:
 | Kasm | https://192.168.100.40 | Remote desktop |
 | FiveM | 192.168.100.60:30120 | Game server |
 | txAdmin | http://192.168.100.60:40120 | Server management |
+| ITFlow | https://itflow.nerdfolio | IT documentation platform |
 
 ---
 
