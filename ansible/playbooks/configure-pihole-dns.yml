@@ -18,6 +18,7 @@
       - "192.168.100.20 pdf.nerdfolio"
       - "192.168.100.20 ai.nerdfolio"
       - "192.168.100.50 wazuh.nerdfolio"
+      - "192.168.100.20 itflow.nerdfolio"
 
   tasks:
     - name: Authenticate with Pi-hole API
