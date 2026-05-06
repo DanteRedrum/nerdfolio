@@ -1,0 +1,57 @@
+---
+# ITFlow — IT Documentation, Ticketing & Billing
+# Self-contained stack: ITFlow + dedicated MariaDB
+# Reverse proxy: Nginx (external network)
+# Docs: /docs/itflow.md
+
+services:
+  itflow:
+    image: itflow/itflow:latest
+    container_name: itflow
+    restart: unless-stopped
+    depends_on:
+      itflow_db:
+        condition: service_healthy
+    environment:
+      - APP_URL=${ITFLOW_URL}
+    volumes:
+      - itflow_uploads:/var/www/html/uploads
+      - itflow_logs:/var/www/html/logs
+    networks:
+      - itflow_internal
+      - proxy
+    labels:
+      - "nginx.enable=true"
+      - "nginx.host=${ITFLOW_DOMAIN}"
+      - "nginx.port=80"
+
+  itflow_db:
+    image: mariadb:10.11
+    container_name: itflow_db
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - itflow_db_data:/var/lib/mysql
+    networks:
+      - itflow_internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  itflow_uploads:
+  itflow_logs:
+  itflow_db_data:
+
+networks:
+  itflow_internal:
+    internal: true
+  proxy:
+    external: true
