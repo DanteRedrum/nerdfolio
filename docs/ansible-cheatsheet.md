@@ -189,6 +189,8 @@ After provisioning and installing Ubuntu:
 | nf-ai-ubuntu | 192.168.100.30 | On demand |
 | nf-kasm-ubuntu | 192.168.100.40 | On demand |
 | nf-security-ubuntu | 192.168.100.50 | On demand |
+| nf-fivem-ubuntu | 192.168.100.60 | On demand |
+| nf-itflow-ubuntu | 192.168.100.70 | On demand |
 
 ## Direct IP Access
 
@@ -214,6 +216,12 @@ Some services are accessed directly by IP rather than hostname:
 | Code Server | http://code.nerdfolio |
 | Dashy | http://dash.nerdfolio |
 | Stirling PDF | http://pdf.nerdfolio |
+
+### On-Demand — ITFlow (nf-itflow-ubuntu — 192.168.100.70)
+
+| Service | URL |
+|---|---|
+| ITFlow | https://itflow.nerdfolio |
 
 ### On-Demand — AI (nf-ai-ubuntu — 192.168.100.30)
 
